@@ -10,7 +10,7 @@ import TransactionEditor from "@/components/TransactionEditor";
 import AIChat from "@/components/AIChat";
 
 interface Transaction {
-  id: number;
+  id: string | number; // Support both CUID and legacy numeric IDs
   type?: "income" | "expense";
   amount?: number;
   vat_amount?: number;

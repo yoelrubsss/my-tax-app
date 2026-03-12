@@ -5,7 +5,7 @@ import { X, Save, ExternalLink, FileText, Tag, Calendar, DollarSign } from "luci
 import { TAX_CATEGORIES, getCategoryById } from "@/lib/tax-knowledge";
 
 interface Transaction {
-  id: number;
+  id: string | number; // Support both CUID and legacy numeric IDs
   type: "income" | "expense";
   amount: number;
   vat_amount: number;

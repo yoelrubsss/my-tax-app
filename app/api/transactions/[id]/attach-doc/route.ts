@@ -1,7 +1,12 @@
+/**
+ * ✅ MIGRATED TO PRISMA DATABASE
+ *
+ * Document attachment now uses Prisma directly.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-server";
-import { getTransactionById, updateTransactionDocument } from "@/lib/db-operations";
-import "@/lib/init-db";
+import { prisma } from "@/lib/prisma";
 
 // POST: Attach document to transaction
 export async function POST(
@@ -9,18 +14,10 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Authenticate user
+    // Authenticate user (returns CUID string)
     const userId = await requireAuth();
 
-    const { id: idString } = await params;
-    const transactionId = parseInt(idString);
-
-    if (isNaN(transactionId)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid transaction ID" },
-        { status: 400 }
-      );
-    }
+    const { id: transactionId } = await params;
 
     // Parse request body
     const body = await request.json();
@@ -34,7 +31,9 @@ export async function POST(
     }
 
     // Fetch transaction to verify ownership
-    const transaction = getTransactionById(transactionId);
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+    });
 
     if (!transaction) {
       return NextResponse.json(
@@ -44,7 +43,7 @@ export async function POST(
     }
 
     // Authorization check: Ensure transaction belongs to current user
-    if (transaction.user_id !== userId) {
+    if (transaction.userId !== userId) {
       return NextResponse.json(
         { success: false, error: "Forbidden: You can only attach documents to your own transactions" },
         { status: 403 }
@@ -52,14 +51,12 @@ export async function POST(
     }
 
     // Update document path
-    const result = updateTransactionDocument(transactionId, documentPath);
+    await prisma.transaction.update({
+      where: { id: transactionId },
+      data: { receiptUrl: documentPath },
+    });
 
-    if (result.changes === 0) {
-      return NextResponse.json(
-        { success: false, error: "Failed to update transaction" },
-        { status: 500 }
-      );
-    }
+    console.log(`✅ Attached document to transaction ${transactionId}`);
 
     return NextResponse.json({
       success: true,
@@ -68,7 +65,7 @@ export async function POST(
     });
 
   } catch (error: any) {
-    console.error("Error attaching document:", error);
+    console.error("❌ Error attaching document:", error);
 
     // Handle authentication errors
     if (error.message === "Authentication required" || error.message.includes("authentication")) {

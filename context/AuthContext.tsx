@@ -9,7 +9,7 @@ import {
 } from "react";
 
 interface User {
-  id: number;
+  id: string | number; // Support both CUID and legacy numeric IDs
   email: string;
   name: string;
   dealer_number: string;

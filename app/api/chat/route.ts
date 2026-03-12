@@ -3,12 +3,11 @@ import OpenAI from "openai";
 import { AI_KNOWLEDGE_BASE } from "@/lib/ai-knowledge";
 import { ISRAELI_TAX_LAW_CONTEXT } from "@/lib/tax-regulations";
 import { requireAuth } from "@/lib/auth-server";
-import { getUserProfile } from "@/lib/db-operations";
 import { prisma } from "@/lib/prisma";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-build",
 });
 
 /**

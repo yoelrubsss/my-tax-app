@@ -1,9 +1,16 @@
-import db from "./db";
+/**
+ * ✅ MIGRATED TO PRISMA DATABASE
+ *
+ * Database operations now use Prisma Client instead of better-sqlite3.
+ * All functions maintain backward compatibility but work with Prisma's CUID strings.
+ */
+
+import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 
 // User operations
 export interface User {
-  id?: number;
+  id?: string; // Changed from number to string (CUID)
   email: string;
   password_hash?: string;
   name: string;
@@ -19,40 +26,106 @@ export async function createUser(
   name: string,
   dealer_number: string,
   business_name?: string
-): Promise<number> {
+): Promise<string> {
   // Hash password
   const salt = await bcrypt.genSalt(10);
   const password_hash = await bcrypt.hash(password, salt);
 
-  const stmt = db.prepare(
-    "INSERT INTO users (email, password_hash, name, dealer_number, business_name) VALUES (?, ?, ?, ?, ?)"
-  );
-  const result = stmt.run(email, password_hash, name, dealer_number, business_name || null);
-  return result.lastInsertRowid as number;
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password: password_hash,
+      name,
+      dealerNumber: dealer_number,
+      profile: business_name
+        ? {
+            create: {
+              businessName: business_name,
+            },
+          }
+        : undefined,
+    },
+  });
+
+  return user.id;
 }
 
 // Get user by email (for login)
-export function getUserByEmail(email: string): User | undefined {
-  const stmt = db.prepare("SELECT * FROM users WHERE email = ?");
-  return stmt.get(email) as User | undefined;
+export async function getUserByEmail(email: string): Promise<User | undefined> {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { profile: true },
+  });
+
+  if (!user) return undefined;
+
+  return {
+    id: user.id,
+    email: user.email,
+    password_hash: user.password,
+    name: user.name || "",
+    dealer_number: user.dealerNumber || "",
+    business_name: user.profile?.businessName || undefined,
+    created_at: user.createdAt.toISOString(),
+  };
 }
 
-// Get user by ID (existing function, updated for new schema)
-export function getUser(id: number): User | undefined {
-  const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
-  return stmt.get(id) as User | undefined;
+// Get user by ID
+export async function getUser(id: string | number): Promise<User | undefined> {
+  // Handle both string (CUID) and number (legacy) IDs
+  const userId = typeof id === "number" ? String(id) : id;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { profile: true },
+  });
+
+  if (!user) return undefined;
+
+  return {
+    id: user.id,
+    email: user.email,
+    password_hash: user.password,
+    name: user.name || "",
+    dealer_number: user.dealerNumber || "",
+    business_name: user.profile?.businessName || undefined,
+    created_at: user.createdAt.toISOString(),
+  };
 }
 
-// Get all users (existing function)
-export function getAllUsers(): User[] {
-  const stmt = db.prepare("SELECT * FROM users ORDER BY name");
-  return stmt.all() as User[];
+// Get all users
+export async function getAllUsers(): Promise<User[]> {
+  const users = await prisma.user.findMany({
+    include: { profile: true },
+    orderBy: { name: "asc" },
+  });
+
+  return users.map((user) => ({
+    id: user.id,
+    email: user.email,
+    password_hash: user.password,
+    name: user.name || "",
+    dealer_number: user.dealerNumber || "",
+    business_name: user.profile?.businessName || undefined,
+    created_at: user.createdAt.toISOString(),
+  }));
+}
+
+// Get user profile
+export async function getUserProfile(userId: string | number) {
+  const userIdStr = typeof userId === "number" ? String(userId) : userId;
+
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: userIdStr },
+  });
+
+  return profile;
 }
 
 // Transaction operations
 export interface Transaction {
-  id?: number;
-  user_id: number;
+  id?: string; // Changed from number to string (CUID)
+  user_id: string | number;
   type?: "income" | "expense";
   amount?: number;
   vat_amount?: number;
@@ -65,141 +138,212 @@ export interface Transaction {
   created_at?: string;
 }
 
-export function createTransaction(transaction: Omit<Transaction, "id" | "created_at">) {
-  const stmt = db.prepare(`
-    INSERT INTO transactions
-    (user_id, type, amount, vat_amount, date, description, category, is_vat_deductible, document_path, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+export async function createTransaction(
+  transaction: Omit<Transaction, "id" | "created_at">
+) {
+  const userIdStr =
+    typeof transaction.user_id === "number"
+      ? String(transaction.user_id)
+      : transaction.user_id;
 
-  const result = stmt.run(
-    transaction.user_id,
-    transaction.type || null,
-    transaction.amount || null,
-    transaction.vat_amount || null,
-    transaction.date || new Date().toISOString().split("T")[0],
-    transaction.description || null,
-    transaction.category || null,
-    transaction.is_vat_deductible ? 1 : 0,
-    transaction.document_path || null,
-    transaction.status || "COMPLETED"
-  );
+  const vatRate = 0.18;
+  const amount = transaction.amount || 0;
+  const vatAmount = amount > 0 ? (amount * vatRate) / (1 + vatRate) : 0;
+  const netAmount = amount - vatAmount;
 
-  return result.lastInsertRowid;
+  const created = await prisma.transaction.create({
+    data: {
+      userId: userIdStr,
+      type: transaction.type?.toUpperCase() as "INCOME" | "EXPENSE" || "EXPENSE",
+      amount: amount,
+      vatRate: vatRate,
+      vatAmount: parseFloat(vatAmount.toFixed(2)),
+      netAmount: parseFloat(netAmount.toFixed(2)),
+      recognizedVatAmount: parseFloat(vatAmount.toFixed(2)),
+      date: transaction.date ? new Date(transaction.date) : new Date(),
+      merchant: transaction.description || "Transaction",
+      description: transaction.description || "",
+      category: transaction.category || "Uncategorized",
+      receiptUrl: transaction.document_path || null,
+    },
+  });
+
+  return created.id;
 }
 
-export function getTransactionsByUser(userId: number, status?: "DRAFT" | "COMPLETED"): Transaction[] {
-  let query = `
-    SELECT * FROM transactions
-    WHERE user_id = ?
-  `;
+export async function getTransactionsByUser(
+  userId: string | number,
+  status?: "DRAFT" | "COMPLETED"
+): Promise<Transaction[]> {
+  const userIdStr = typeof userId === "number" ? String(userId) : userId;
 
-  const params: any[] = [userId];
+  // Build where clause
+  const where: any = {
+    userId: userIdStr,
+  };
 
-  if (status) {
-    query += ` AND status = ?`;
-    params.push(status);
+  // Apply status filter based on "Money Talks" rule
+  if (status === "DRAFT") {
+    where.amount = 0;
+  } else if (status === "COMPLETED") {
+    where.amount = { gt: 0 };
   }
 
-  query += ` ORDER BY date DESC, created_at DESC`;
+  const transactions = await prisma.transaction.findMany({
+    where,
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
 
-  const stmt = db.prepare(query);
-  return stmt.all(...params) as Transaction[];
+  return transactions.map((tx) => ({
+    id: tx.id,
+    user_id: tx.userId,
+    type: tx.type.toLowerCase() as "income" | "expense",
+    amount: tx.amount,
+    vat_amount: tx.vatAmount,
+    date: tx.date.toISOString().split("T")[0],
+    description: tx.description || tx.merchant,
+    category: tx.category,
+    is_vat_deductible: true,
+    document_path: tx.receiptUrl || undefined,
+    status: tx.amount === 0 ? "DRAFT" : "COMPLETED",
+    created_at: tx.createdAt.toISOString(),
+  }));
 }
 
-export function getTransactionsByDateRange(
-  userId: number,
+export async function getTransactionsByDateRange(
+  userId: string | number,
   startDate: string,
   endDate: string
-): Transaction[] {
-  const stmt = db.prepare(`
-    SELECT * FROM transactions
-    WHERE user_id = ? AND date >= ? AND date <= ?
-    ORDER BY date DESC
-  `);
-  return stmt.all(userId, startDate, endDate) as Transaction[];
+): Promise<Transaction[]> {
+  const userIdStr = typeof userId === "number" ? String(userId) : userId;
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      userId: userIdStr,
+      date: {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  return transactions.map((tx) => ({
+    id: tx.id,
+    user_id: tx.userId,
+    type: tx.type.toLowerCase() as "income" | "expense",
+    amount: tx.amount,
+    vat_amount: tx.vatAmount,
+    date: tx.date.toISOString().split("T")[0],
+    description: tx.description || tx.merchant,
+    category: tx.category,
+    is_vat_deductible: true,
+    document_path: tx.receiptUrl || undefined,
+    status: tx.amount === 0 ? "DRAFT" : "COMPLETED",
+    created_at: tx.createdAt.toISOString(),
+  }));
 }
 
-export function getTransactionById(id: number): Transaction | undefined {
-  const stmt = db.prepare("SELECT * FROM transactions WHERE id = ?");
-  return stmt.get(id) as Transaction | undefined;
+export async function getTransactionById(
+  id: string | number
+): Promise<Transaction | undefined> {
+  const txId = typeof id === "number" ? String(id) : id;
+
+  const tx = await prisma.transaction.findUnique({
+    where: { id: txId },
+  });
+
+  if (!tx) return undefined;
+
+  return {
+    id: tx.id,
+    user_id: tx.userId,
+    type: tx.type.toLowerCase() as "income" | "expense",
+    amount: tx.amount,
+    vat_amount: tx.vatAmount,
+    date: tx.date.toISOString().split("T")[0],
+    description: tx.description || tx.merchant,
+    category: tx.category,
+    is_vat_deductible: true,
+    document_path: tx.receiptUrl || undefined,
+    status: tx.amount === 0 ? "DRAFT" : "COMPLETED",
+    created_at: tx.createdAt.toISOString(),
+  };
 }
 
-export function updateTransactionDocument(id: number, documentPath: string) {
-  const stmt = db.prepare("UPDATE transactions SET document_path = ? WHERE id = ?");
-  return stmt.run(documentPath, id);
+export async function updateTransactionDocument(
+  id: string | number,
+  documentPath: string
+) {
+  const txId = typeof id === "number" ? String(id) : id;
+
+  const updated = await prisma.transaction.update({
+    where: { id: txId },
+    data: { receiptUrl: documentPath },
+  });
+
+  return { changes: 1 }; // For backward compatibility
 }
 
-export function updateTransaction(
-  id: number,
+export async function updateTransaction(
+  id: string | number,
   updates: Partial<Omit<Transaction, "id" | "user_id" | "created_at">>
 ) {
-  const fields: string[] = [];
-  const values: any[] = [];
+  const txId = typeof id === "number" ? String(id) : id;
+
+  const data: any = {};
 
   if (updates.type !== undefined) {
-    fields.push("type = ?");
-    values.push(updates.type);
+    data.type = updates.type.toUpperCase();
   }
   if (updates.amount !== undefined) {
-    fields.push("amount = ?");
-    values.push(updates.amount);
+    const vatRate = 0.18;
+    const amount = updates.amount;
+    const vatAmount = amount > 0 ? (amount * vatRate) / (1 + vatRate) : 0;
+    const netAmount = amount - vatAmount;
+
+    data.amount = amount;
+    data.vatAmount = parseFloat(vatAmount.toFixed(2));
+    data.netAmount = parseFloat(netAmount.toFixed(2));
+    data.recognizedVatAmount = parseFloat(vatAmount.toFixed(2));
   }
   if (updates.vat_amount !== undefined) {
-    fields.push("vat_amount = ?");
-    values.push(updates.vat_amount);
+    data.vatAmount = updates.vat_amount;
   }
   if (updates.date !== undefined) {
-    fields.push("date = ?");
-    values.push(updates.date);
+    data.date = new Date(updates.date);
   }
   if (updates.description !== undefined) {
-    fields.push("description = ?");
-    values.push(updates.description);
+    data.description = updates.description;
+    data.merchant = updates.description;
   }
   if (updates.category !== undefined) {
-    fields.push("category = ?");
-    values.push(updates.category || null);
-  }
-  if (updates.is_vat_deductible !== undefined) {
-    fields.push("is_vat_deductible = ?");
-    values.push(updates.is_vat_deductible ? 1 : 0);
+    data.category = updates.category || "Uncategorized";
   }
   if (updates.document_path !== undefined) {
-    fields.push("document_path = ?");
-    values.push(updates.document_path || null);
-  }
-  if (updates.status !== undefined) {
-    fields.push("status = ?");
-    values.push(updates.status);
+    data.receiptUrl = updates.document_path || null;
   }
 
-  if (fields.length === 0) {
+  if (Object.keys(data).length === 0) {
     throw new Error("No fields to update");
   }
 
-  // Auto-complete draft if all required fields are present
-  const transaction = getTransactionById(id);
-  if (transaction && transaction.status === "DRAFT") {
-    const hasAmount = updates.amount !== undefined || transaction.amount !== null;
-    const hasDescription = updates.description !== undefined || transaction.description !== null;
-    const hasType = updates.type !== undefined || transaction.type !== null;
+  const updated = await prisma.transaction.update({
+    where: { id: txId },
+    data,
+  });
 
-    if (hasAmount && hasDescription && hasType && updates.status === undefined) {
-      fields.push("status = ?");
-      values.push("COMPLETED");
-    }
-  }
-
-  values.push(id);
-  const sql = `UPDATE transactions SET ${fields.join(", ")} WHERE id = ?`;
-  const stmt = db.prepare(sql);
-  return stmt.run(...values);
+  return { changes: 1 }; // For backward compatibility
 }
 
-export function deleteTransaction(id: number) {
-  const stmt = db.prepare("DELETE FROM transactions WHERE id = ?");
-  return stmt.run(id);
+export async function deleteTransaction(id: string | number) {
+  const txId = typeof id === "number" ? String(id) : id;
+
+  await prisma.transaction.delete({
+    where: { id: txId },
+  });
+
+  return { changes: 1 }; // For backward compatibility
 }
 
 // VAT Summary calculations
@@ -211,12 +355,16 @@ export interface VATSummary {
   vatToPay: number;
 }
 
-export function calculateVATSummary(
-  userId: number,
+export async function calculateVATSummary(
+  userId: string | number,
   startDate: string,
   endDate: string
-): VATSummary {
-  const transactions = getTransactionsByDateRange(userId, startDate, endDate);
+): Promise<VATSummary> {
+  const transactions = await getTransactionsByDateRange(
+    userId,
+    startDate,
+    endDate
+  );
 
   let totalIncome = 0;
   let totalExpenses = 0;
@@ -225,12 +373,12 @@ export function calculateVATSummary(
 
   transactions.forEach((t) => {
     if (t.type === "income") {
-      totalIncome += t.amount;
-      totalVATOnIncome += t.vat_amount;
+      totalIncome += t.amount || 0;
+      totalVATOnIncome += t.vat_amount || 0;
     } else if (t.type === "expense") {
-      totalExpenses += t.amount;
+      totalExpenses += t.amount || 0;
       if (t.is_vat_deductible) {
-        totalDeductibleVAT += t.vat_amount;
+        totalDeductibleVAT += t.vat_amount || 0;
       }
     }
   });

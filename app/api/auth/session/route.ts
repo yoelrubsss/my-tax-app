@@ -1,6 +1,12 @@
+/**
+ * ✅ MIGRATED TO PRISMA DATABASE
+ *
+ * Session verification now uses Prisma directly.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { getUser } from "@/lib/db-operations";
+import { prisma } from "@/lib/prisma";
 
 // Secret key for JWT (must match login route)
 const SECRET_KEY = new TextEncoder().encode(
@@ -22,8 +28,14 @@ export async function GET(request: NextRequest) {
     // Verify JWT token
     const { payload } = await jwtVerify(token, SECRET_KEY);
 
-    // Get fresh user data from database
-    const user = getUser(payload.userId as number);
+    // CRITICAL: userId is now a string (CUID), not a number
+    const userId = payload.userId as string;
+
+    // Get fresh user data from Prisma database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
 
     if (!user) {
       return NextResponse.json(
@@ -39,8 +51,8 @@ export async function GET(request: NextRequest) {
         id: user.id,
         email: user.email,
         name: user.name,
-        dealer_number: user.dealer_number,
-        business_name: user.business_name,
+        dealer_number: user.dealerNumber,
+        business_name: user.profile?.businessName,
       },
     });
 

@@ -4,7 +4,9 @@ import OpenAI from "openai";
 import { readFile } from "fs/promises";
 import path from "path";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-build"
+});
 
 const CATEGORY_IDS = [
   "office-equipment",

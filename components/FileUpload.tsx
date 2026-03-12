@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import { Paperclip, Eye, Upload, Loader2, FileText } from "lucide-react";
 
 interface FileUploadProps {
-  transactionId: number;
+  transactionId: string | number;
   initialPath?: string;
   onSuccess?: () => void;
 }

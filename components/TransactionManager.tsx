@@ -23,7 +23,7 @@ import {
 } from "@/lib/fiscal-utils";
 
 interface Transaction {
-  id: number;
+  id: string | number; // Support both CUID (string) and legacy numeric IDs
   type: "income" | "expense";
   amount: number;
   vat_amount: number;
@@ -144,7 +144,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
       if (result.success) {
         setAllTransactions(result.data);
         // Filter by current period
-        const periodFiltered = filterTransactionsByPeriod(result.data, currentPeriod);
+        const periodFiltered = filterTransactionsByPeriod<Transaction>(result.data, currentPeriod);
         setTransactions(periodFiltered);
       }
     } catch (error) {
@@ -155,7 +155,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
   // Re-filter transactions when period changes
   useEffect(() => {
     if (allTransactions.length > 0) {
-      const periodFiltered = filterTransactionsByPeriod(allTransactions, currentPeriod);
+      const periodFiltered = filterTransactionsByPeriod<Transaction>(allTransactions, currentPeriod);
       setTransactions(periodFiltered);
     }
   }, [currentPeriod, allTransactions]);
@@ -258,7 +258,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
     setTransactionToEdit(null);
   };
 
-  const handleDelete = async (id: number, description: string) => {
+  const handleDelete = async (id: string | number, description: string) => {
     const confirmed = window.confirm(
       `האם אתה בטוח שברצונך למחוק את העסקה:\n"${description}"?`
     );
@@ -569,7 +569,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                       }
                       setIsVatDeductible(e.target.checked);
                     }}
-                    disabled={selectedTaxCategory && selectedTaxCategory.vatPercentage === 0}
+                    disabled={selectedTaxCategory?.vatPercentage === 0 || false}
                     className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-medium text-gray-700">
