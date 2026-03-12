@@ -1,0 +1,254 @@
+# Edit Transaction - Quick Visual Guide
+
+## Before & After
+
+### Transaction List - BEFORE
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 10 עסקאות אחרונות                                            │
+├──────────────────────────────────────────────────────────────┤
+│ תאריך    │ סוג    │ תיאור        │ סכום    │ מסמך │ פעולות  │
+├──────────────────────────────────────────────────────────────┤
+│ 15/01/24 │ הוצאה  │ דלק          │ ₪300.00 │ 📄   │ [🗑️]    │
+│ 20/01/24 │ הוצאה  │ אופיס דיפו   │ ₪450.00 │ 📄   │ [🗑️]    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Transaction List - AFTER (with Edit Button)
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 10 עסקאות אחרונות                                            │
+├──────────────────────────────────────────────────────────────┤
+│ תאריך    │ סוג    │ תיאור        │ סכום    │ מסמך │ פעולות  │
+├──────────────────────────────────────────────────────────────┤
+│ 15/01/24 │ הוצאה  │ דלק          │ ₪300.00 │ 📄   │ [✏️][🗑️]│ ← NEW!
+│ 20/01/24 │ הוצאה  │ אופיס דיפו   │ ₪450.00 │ 📄   │ [✏️][🗑️]│ ← NEW!
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Edit Flow
+
+### Step 1: Click Edit Button ✏️
+```
+User clicks: [✏️] next to transaction
+         ↓
+Modal opens with current values
+```
+
+### Step 2: Edit Modal Opens
+```
+╔═══════════════════════════════════════════════════╗
+║  ערוך עסקה                                  [X]  ║
+╠═══════════════════════════════════════════════════╣
+║                                                   ║
+║  📄 קובץ קיים מצורף                              ║
+║  ┌──────────────────────────────────────────┐    ║
+║  │ receipt_dlek_300.pdf     [View 🔗]       │    ║
+║  └──────────────────────────────────────────┘    ║
+║  💡 הקובץ המצורף יישמר אוטומטית                 ║
+║                                                   ║
+║  📅 תאריך:                                        ║
+║  ┌──────────────────────────────────────────┐    ║
+║  │ 2024-01-15                               │    ║
+║  └──────────────────────────────────────────┘    ║
+║                                                   ║
+║  📝 ספק / תיאור:                                  ║
+║  ┌──────────────────────────────────────────┐    ║
+║  │ דלק                          ← Can edit  │    ║
+║  └──────────────────────────────────────────┘    ║
+║                                                   ║
+║  🏷️ קטגוריה מס:                                  ║
+║  ┌──────────────────────────────────────────┐    ║
+║  │ רכב - דלק                    ▼           │    ║
+║  └──────────────────────────────────────────┘    ║
+║                                                   ║
+║  💰 סכום כולל (כולל מע״מ):                       ║
+║  ┌──────────────────────────────────────────┐    ║
+║  │ 300.00                       ← Can edit  │    ║
+║  └──────────────────────────────────────────┘    ║
+║                                                   ║
+║  ┌───────────────────────────────────────────┐   ║
+║  │ סכום נטו: ₪254.24    ← Auto-calculated   │   ║
+║  │ מע״מ (18%): ₪45.76                        │   ║
+║  └───────────────────────────────────────────┘   ║
+║                                                   ║
+║  [💾 שמור שינויים]  [ביטול]                      ║
+╚═══════════════════════════════════════════════════╝
+```
+
+### Step 3: Make Changes
+```
+User types: "תחנת דלק סונול" in merchant field
+User types: "350.00" in amount field
+         ↓
+VAT auto-updates:
+  - סכום נטו: ₪296.61
+  - מע״מ (18%): ₪53.39
+```
+
+### Step 4: Save
+```
+User clicks: [💾 שמור שינויים]
+         ↓
+API call: PUT /api/transactions
+         ↓
+Database updated (receipt preserved!)
+         ↓
+Modal closes
+         ↓
+Transaction list refreshes
+```
+
+### Step 5: Result
+```
+┌──────────────────────────────────────────────────────────────┐
+│ 15/01/24 │ הוצאה  │ תחנת דלק סונול │ ₪350.00 │ 📄  │ [✏️][🗑️]│
+└──────────────────────────────────────────────────────────────┘
+                      ↑ Updated!      ↑ Updated!   ↑ Still there!
+```
+
+---
+
+## Real-World Example
+
+### Scenario:
+> "I got a receipt from a gas station for ₪300, but I made a mistake - it was actually ₪350 and I wrote 'דלק' instead of the full name 'תחנת דלק סונול'"
+
+### Solution:
+1. Click **[✏️]** next to the transaction
+2. Update:
+   - Merchant: `דלק` → `תחנת דלק סונול`
+   - Amount: `300.00` → `350.00`
+3. Click **[💾 שמור שינויים]**
+4. **Receipt is automatically preserved!** 🎉
+
+---
+
+## Key Features
+
+### ✅ What You CAN Edit:
+- ✏️ Merchant/Description
+- 💰 Amount (VAT auto-calculates)
+- 📅 Date
+- 🏷️ Category
+
+### ✅ What's Preserved:
+- 📄 Receipt file (NEVER deleted)
+- 🔒 Transaction type (income/expense)
+- 👤 User ownership
+- 🆔 Transaction ID
+
+### ✅ What's Automatic:
+- 🧮 VAT calculation (18%)
+- 🧮 Net amount calculation
+- 🔄 Transaction list refresh
+- 📊 VAT report update
+
+---
+
+## Technical Flow
+
+```
+User Action: Click Edit [✏️]
+    ↓
+Frontend: Open EditTransactionModal
+    ↓
+User edits fields
+    ↓
+User clicks Save
+    ↓
+Frontend: PUT /api/transactions
+    Body: { id, merchant, amount, date, category }
+    ↓
+Backend: Verify authentication
+    ↓
+Backend: Check ownership (user_id match)
+    ↓
+Backend: Calculate VAT (18% of amount)
+    ↓
+Backend: Update database (preserve document_path!)
+    ↓
+Backend: Return updated transaction
+    ↓
+Frontend: Close modal
+    ↓
+Frontend: Refresh transaction list
+    ↓
+✅ Done! Receipt preserved ✅
+```
+
+---
+
+## Error Handling
+
+### Scenario 1: Not Authenticated
+```
+Result: 401 Unauthorized
+Message: "Not authenticated"
+Action: Redirect to login
+```
+
+### Scenario 2: Not Your Transaction
+```
+Result: 403 Forbidden
+Message: "Unauthorized"
+Action: Show error alert
+```
+
+### Scenario 3: Transaction Not Found
+```
+Result: 404 Not Found
+Message: "Transaction not found"
+Action: Show error alert, refresh list
+```
+
+### Scenario 4: Network Error
+```
+Result: 500 Internal Server Error
+Message: "Failed to update transaction"
+Action: Show error alert, don't close modal
+```
+
+---
+
+## FAQ
+
+### Q: Will my receipt be deleted if I edit the transaction?
+**A: NO! The receipt is ALWAYS preserved.** The edit function never touches the `document_path` field.
+
+### Q: Can I change the transaction from Income to Expense?
+**A: No.** Transaction type is not editable. Delete and recreate if needed.
+
+### Q: What happens to the VAT when I change the amount?
+**A: It auto-calculates!** You'll see the new VAT amount in real-time.
+
+### Q: Can I edit someone else's transaction?
+**A: No.** The API validates ownership and returns 403 Forbidden.
+
+### Q: Can I edit multiple transactions at once?
+**A: Not yet.** This is a potential future enhancement.
+
+---
+
+## Keyboard Shortcuts (Future Enhancement)
+
+Potential shortcuts for faster editing:
+- `E` - Edit selected transaction
+- `Esc` - Close modal without saving
+- `Ctrl+S` / `Cmd+S` - Save and close
+- `Tab` - Navigate between fields
+
+---
+
+## Summary
+
+The Edit Transaction feature is:
+- ✅ **Safe** - Preserves receipts
+- ✅ **Secure** - Validates authentication and ownership
+- ✅ **Smart** - Auto-calculates VAT
+- ✅ **Simple** - Intuitive UI with real-time preview
+- ✅ **Solid** - Full error handling
+
+**Enjoy editing your transactions! 🎉**

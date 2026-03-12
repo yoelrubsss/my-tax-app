@@ -1,0 +1,70 @@
+// This is your Prisma schema file
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  dealerNumber  String?   // Israeli tax ID (9 digits)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       UserProfile?
+  transactions  Transaction[]
+  chatMessages  ChatMessage[]
+}
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  businessName    String?
+  businessType    String?  // 'OSEK_PATUR', 'OSEK_MURSHE', 'LTD'
+  isHomeOffice    Boolean  @default(false)
+  hasChildren     Boolean  @default(false)
+  childrenCount   Int      @default(0)
+  hasVehicle      Boolean  @default(false)
+  standardWorkDay Int      @default(9)
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date        DateTime @default(now())
+  merchant    String
+  description String?
+
+  amount      Float
+  vatRate     Float    @default(0.18)
+  vatAmount   Float    // Total VAT from receipt (18%)
+  netAmount   Float
+  recognizedVatAmount Float @default(0) // ACTUAL claimable VAT after applying category rules
+
+  category    String
+  isRecognized Boolean @default(true)
+  receiptUrl  String?
+  type        String   // 'INCOME' or 'EXPENSE'
+  createdAt   DateTime @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String   // 'user' or 'assistant'
+  content   String
+  createdAt DateTime @default(now())
+}
