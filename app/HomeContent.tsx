@@ -278,7 +278,7 @@ export default function HomeContent() {
     <>
       <div className="min-h-screen bg-gray-50 p-4 md:p-8 pb-24">
         {/* Header */}
-        <div className="max-w-6xl mx-auto mb-6">
+        <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
           <div className="bg-gradient-to-l from-blue-600 to-blue-700 rounded-lg shadow-md p-6 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -345,7 +345,7 @@ export default function HomeContent() {
         </div>
 
         {/* Dashboard Stats Cards */}
-        <div className="max-w-6xl mx-auto mb-6">
+        <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Income */}
             <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
@@ -430,7 +430,7 @@ export default function HomeContent() {
         />
 
         {/* Drafts Inbox - Pending Receipts */}
-        <div className="max-w-6xl mx-auto mb-6">
+        <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
           <DraftsInbox onReviewDraft={handleReviewDraft} refreshTrigger={refreshTrigger} />
         </div>
 

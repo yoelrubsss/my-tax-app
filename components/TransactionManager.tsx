@@ -295,9 +295,9 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
 
         {/* Period Management Toolbar */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-y-3">
             {/* Left Side: Period Navigation */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <button
                 onClick={handlePreviousPeriod}
                 className="p-2 hover:bg-white rounded-md transition-colors"
@@ -306,7 +306,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                 <ChevronRight className="w-5 h-5 text-blue-600" />
               </button>
 
-              <div className="text-lg font-semibold text-gray-900 min-w-[200px] text-center">
+              <div className="text-sm md:text-lg font-semibold text-gray-900 text-center">
                 {getPeriodLabel(currentPeriod)}
               </div>
 
@@ -320,9 +320,9 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
             </div>
 
             {/* Right Side: Deadline Badge & Countdown */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center flex-wrap gap-2">
               {/* Deadline Badge */}
-              <div className="text-sm text-gray-700">
+              <div className="text-xs md:text-sm text-gray-700">
                 <span className="font-medium">להגשה עד: </span>
                 <span className="font-semibold">
                   {getDeadline(currentPeriod).toLocaleDateString('he-IL')}
@@ -340,7 +340,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                 };
 
                 return (
-                  <div className={`px-4 py-2 rounded-full border-2 font-semibold text-sm ${colorClasses[deadlineStatus.status]}`}>
+                  <div className={`px-3 py-1 md:px-4 md:py-2 rounded-full border-2 font-semibold text-xs md:text-sm ${colorClasses[deadlineStatus.status]}`}>
                     {deadlineStatus.message}
                   </div>
                 );
@@ -612,7 +612,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
               אין עסקאות להצגה. הוסף את העסקה הראשונה שלך!
             </p>
           ) : (
-            <div className="max-h-[500px] overflow-y-auto relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+            <div className="max-h-[500px] overflow-x-auto overflow-y-auto relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-white shadow-sm border-b-2 border-gray-200">
                   <tr>

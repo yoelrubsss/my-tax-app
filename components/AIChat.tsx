@@ -141,7 +141,7 @@ export default function AIChat() {
     <>
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed inset-x-4 bottom-20 md:inset-auto md:bottom-24 md:right-6 md:w-[480px] max-h-[min(700px,80vh)] bg-white rounded-2xl shadow-2xl border border-purple-200 flex flex-col z-[60] overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed inset-2 md:inset-auto md:bottom-24 md:right-6 md:w-[480px] md:max-h-[min(700px,80vh)] bg-white rounded-2xl shadow-2xl border border-purple-200 flex flex-col z-[60] overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
           {/* Header with Gradient */}
           <div className="sticky top-0 z-10 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
@@ -289,12 +289,12 @@ export default function AIChat() {
       {/* Floating "Magic Pill" Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 z-[60] flex items-center gap-3 animate-pulse"
+        className="fixed bottom-5 right-4 md:bottom-6 md:right-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white p-3.5 md:px-6 md:py-4 rounded-full shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 z-[60] flex items-center gap-2 animate-pulse"
         style={{ animationDuration: "3s" }}
         aria-label="פתח צ'אט עם רואה חשבון דיגיטלי"
       >
         <Sparkles className="w-6 h-6" />
-        <span className="font-semibold text-base">התייעץ עם ה-AI</span>
+        <span className="hidden md:inline font-semibold text-base">התייעץ עם ה-AI</span>
       </button>
     </>
   );
