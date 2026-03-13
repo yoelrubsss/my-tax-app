@@ -171,22 +171,22 @@ export default function TransactionEditor({
   const documentUrl = transaction.document_path || null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-7xl h-[90vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4">
+      <div className="bg-white rounded-none md:rounded-xl shadow-2xl w-full max-w-7xl h-screen md:h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 flex items-center justify-between flex-shrink-0">
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <FileText className="w-7 h-7" />
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 md:p-6 flex items-center justify-between flex-shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-lg md:text-2xl font-bold flex items-center gap-2">
+              <FileText className="w-5 h-5 md:w-7 md:h-7 flex-shrink-0" />
               מלא פרטי העסקה
             </h2>
-            <p className="text-blue-100 text-sm mt-1">
+            <p className="text-blue-100 text-xs md:text-sm mt-0.5 md:mt-1">
               עיין בקבלה ומלא את הפרטים החסרים
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-colors"
+            className="flex-shrink-0 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-colors ml-2"
             aria-label="סגור"
           >
             <X className="w-6 h-6" />
@@ -196,7 +196,7 @@ export default function TransactionEditor({
         {/* Split View Content */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
           {/* LEFT SIDE: Receipt Document */}
-          <div className="w-full md:w-1/2 bg-gray-900 flex flex-col min-h-0">
+          <div className="w-full md:w-1/2 bg-gray-900 flex flex-col min-h-0 max-h-[35vh] md:max-h-none">
             {/* Document Controls - Only show for images */}
             {!isPDF && isImage && (
               <div className="bg-gray-800 p-3 flex items-center justify-center gap-2 flex-shrink-0">

@@ -40,8 +40,7 @@ export default function DraftsInbox({ onReviewDraft, refreshTrigger }: DraftsInb
       const result = await response.json();
 
       if (result.success && Array.isArray(result.data)) {
-        // Filter on client side for DRAFT status
-        // API marks transactions as DRAFT if amount === 0
+        // Filter for DRAFT status (persisted in DB via status field)
         const draftTransactions = result.data.filter((t: Transaction) => t.status === 'DRAFT');
 
         console.log(`✅ DraftsInbox: Found ${draftTransactions.length} drafts out of ${result.data.length} total transactions`);

@@ -280,21 +280,21 @@ export default function HomeContent() {
         {/* Header */}
         <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
           <div className="bg-gradient-to-l from-blue-600 to-blue-700 rounded-lg shadow-md p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Receipt className="w-12 h-12" />
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-bold">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 md:gap-4 min-w-0">
+                <Receipt className="w-8 h-8 md:w-12 md:h-12 flex-shrink-0" />
+                <div className="min-w-0">
+                  <h1 className="text-base md:text-3xl font-bold leading-tight truncate">
                     ניהול מע״מ - עוסק מורשה
                   </h1>
-                  <p className="text-blue-100 text-sm md:text-base">
+                  <p className="text-blue-100 text-xs md:text-base">
                     מערכת לניהול דו״חות מע״מ דו-חודשיים
                   </p>
                 </div>
               </div>
 
               {/* User Info & Logout */}
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <div className="text-left hidden md:block">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <User className="w-4 h-4" />
@@ -310,7 +310,7 @@ export default function HomeContent() {
                 {/* Settings Button */}
                 <button
                   onClick={() => router.push("/settings")}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg transition-colors text-sm font-medium"
+                  className="flex items-center gap-1 md:gap-2 px-2 py-2 md:px-4 bg-blue-500 hover:bg-blue-400 rounded-lg transition-colors text-sm font-medium"
                   title="הגדרות"
                 >
                   <Settings className="w-4 h-4" />
@@ -319,7 +319,7 @@ export default function HomeContent() {
 
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-400 rounded-lg transition-colors text-sm font-medium"
+                  className="flex items-center gap-1 md:gap-2 px-2 py-2 md:px-4 bg-blue-500 hover:bg-blue-400 rounded-lg transition-colors text-sm font-medium"
                   title="התנתקות"
                 >
                   <LogOut className="w-4 h-4" />
