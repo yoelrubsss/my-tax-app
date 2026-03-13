@@ -141,9 +141,9 @@ export default function AIChat() {
     <>
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-28 right-6 w-[480px] h-[700px] bg-white rounded-2xl shadow-2xl border border-purple-200 flex flex-col z-50 animate-in slide-in-from-bottom-5 duration-300">
+        <div className="fixed inset-x-4 bottom-20 md:inset-auto md:bottom-24 md:right-6 md:w-[480px] max-h-[min(700px,80vh)] bg-white rounded-2xl shadow-2xl border border-purple-200 flex flex-col z-[60] overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
           {/* Header with Gradient */}
-          <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between">
+          <div className="sticky top-0 z-10 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white px-6 py-4 rounded-t-2xl flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
               <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
                 <Bot className="w-6 h-6" />
@@ -163,7 +163,7 @@ export default function AIChat() {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-purple-50/30 to-white">
+          <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-4 bg-gradient-to-b from-purple-50/30 to-white">
             {messages.length === 0 && (
               <div className="text-center text-gray-600 mt-12">
                 <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center">
@@ -289,7 +289,7 @@ export default function AIChat() {
       {/* Floating "Magic Pill" Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 z-50 flex items-center gap-3 animate-pulse"
+        className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white px-6 py-4 rounded-full shadow-2xl hover:shadow-purple-500/50 transition-all hover:scale-105 z-[60] flex items-center gap-3 animate-pulse"
         style={{ animationDuration: "3s" }}
         aria-label="פתח צ'אט עם רואה חשבון דיגיטלי"
       >
