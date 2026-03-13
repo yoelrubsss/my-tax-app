@@ -57,6 +57,7 @@ model Transaction {
   isRecognized Boolean @default(true)
   receiptUrl  String?
   type        String   // 'INCOME' or 'EXPENSE'
+  status      String   @default("COMPLETED") // 'DRAFT' or 'COMPLETED'
   createdAt   DateTime @default(now())
 }
 

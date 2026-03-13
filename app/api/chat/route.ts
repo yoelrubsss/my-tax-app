@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { AI_KNOWLEDGE_BASE } from "@/lib/ai-knowledge";
 import { ISRAELI_TAX_LAW_CONTEXT } from "@/lib/tax-regulations";
 import { requireAuth } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
-
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-build",
-});
 
 /**
  * Fetch user context for personalized AI responses
@@ -174,22 +169,32 @@ ${formattedContext}
 - Be conversational, professional, and empathetic in Hebrew.
 `;
 
-    // Create chat completion with OpenAI
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: enhancedSystemPrompt,
-        },
-        ...messages,
-      ],
-      temperature: 0.7,
-      max_tokens: 1500,
+    // Create Gemini client with system instruction and same temperature/token settings
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      systemInstruction: enhancedSystemPrompt,
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 1500,
+      },
     });
 
+    // Convert OpenAI-format history to Gemini format.
+    // All messages except the last go into history; the last is sent via sendMessage.
+    type ChatMessage = { role: string; content: string };
+    const history = (messages as ChatMessage[]).slice(0, -1).map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    }));
+    const lastMessage = (messages as ChatMessage[])[messages.length - 1];
+
+    const chat = model.startChat({ history });
+    const result = await chat.sendMessage(lastMessage.content);
+
     // Extract the assistant's response
-    const assistantMessage = completion.choices[0]?.message?.content || "מצטער, לא הצלחתי לעבד את השאלה. נסה שוב.";
+    const assistantMessage =
+      result.response.text() || "מצטער, לא הצלחתי לעבד את השאלה. נסה שוב.";
 
     // Save assistant's response to database (use userIdStr from scope)
     await saveChatMessage(userIdStr, 'assistant', assistantMessage);
@@ -209,12 +214,25 @@ ${formattedContext}
       );
     }
 
-    // Handle specific OpenAI errors
+    // Handle Gemini-specific errors
     if (error instanceof Error) {
-      if (error.message.includes("API key")) {
+      console.error("chat API error details:", error.constructor.name, error.message);
+      if (
+        error.message.includes("API_KEY_INVALID") ||
+        error.message.includes("API key")
+      ) {
         return NextResponse.json(
-          { error: "OpenAI API key is not configured" },
+          { error: "Gemini API key is not configured or invalid" },
           { status: 500 }
+        );
+      }
+      if (
+        error.message.includes("RESOURCE_EXHAUSTED") ||
+        error.message.includes("quota")
+      ) {
+        return NextResponse.json(
+          { error: "הגעת למגבלת Gemini — נסה שוב מאוחר יותר" },
+          { status: 429 }
         );
       }
     }

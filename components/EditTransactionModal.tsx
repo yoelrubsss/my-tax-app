@@ -121,7 +121,7 @@ export default function EditTransactionModal({
           <div className="px-6 pt-4 pb-2">
             <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
               {/* Check if it's an image or PDF */}
-              {transaction.document_path.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+              {transaction.document_path.match(/\.(jpg|jpeg|png|gif|webp)($|\?)/i) ? (
                 // Image Preview
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
@@ -129,13 +129,13 @@ export default function EditTransactionModal({
                     קבלה מצורפת
                   </p>
                   <a
-                    href={`/api/uploads/${transaction.document_path}`}
+                    href={transaction.document_path}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block"
                   >
                     <img
-                      src={`/api/uploads/${transaction.document_path}`}
+                      src={transaction.document_path}
                       alt="Receipt preview"
                       className="w-full max-w-md mx-auto rounded border border-gray-300 hover:border-blue-500 transition-colors cursor-pointer"
                     />
@@ -152,13 +152,13 @@ export default function EditTransactionModal({
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">קובץ מצורף</p>
                     <a
-                      href={`/api/uploads/${transaction.document_path}`}
+                      href={transaction.document_path}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 mt-1"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      {transaction.document_path.split('.').pop()?.toUpperCase()} - פתח בחלון חדש
+                      PDF - פתח בחלון חדש
                     </a>
                   </div>
                 </div>

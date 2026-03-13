@@ -26,14 +26,6 @@ export default function DraftsInbox({ onReviewDraft, refreshTrigger }: DraftsInb
   const [drafts, setDrafts] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Helper function to convert file paths to API URLs
-  const getSafeUrl = (url: string | null | undefined) => {
-    if (!url) return null;
-    // Ensure we don't double-prefix if already there
-    const cleanUrl = url.startsWith('/') ? url.substring(1) : url;
-    return `/api/${cleanUrl}`;
-  };
-
   useEffect(() => {
     fetchDrafts();
   }, [refreshTrigger]);
@@ -143,8 +135,7 @@ export default function DraftsInbox({ onReviewDraft, refreshTrigger }: DraftsInb
               ? new Date(draft.created_at).toLocaleDateString("he-IL")
               : "לא ידוע";
 
-            // Get safe URL for document
-            const documentUrl = getSafeUrl(draft.document_path);
+            const documentUrl = draft.document_path || null;
 
             return (
               <div

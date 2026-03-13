@@ -61,10 +61,7 @@ export async function GET(request: NextRequest) {
 
     // Map Prisma fields to frontend-expected format (snake_case for backward compatibility)
     const mappedTransactions = transactions.map(tx => {
-      // THE "MONEY TALKS" RULE:
-      // A transaction is a DRAFT if and ONLY if amount === 0
-      // If amount > 0, it's COMPLETED (regardless of merchant name)
-      const isDraft = tx.amount === 0;
+      const isDraft = tx.status === 'DRAFT';
 
       return {
         id: tx.id,
@@ -80,7 +77,7 @@ export async function GET(request: NextRequest) {
         is_vat_deductible: true, // Prisma doesn't track this, assume true
         document_path: tx.receiptUrl, // Map receiptUrl → document_path
         receiptUrl: tx.receiptUrl,
-        status: isDraft ? 'DRAFT' : 'COMPLETED', // Money talks: amount > 0 = completed
+        status: isDraft ? 'DRAFT' : 'COMPLETED',
         created_at: tx.createdAt.toISOString(),
       };
     });
@@ -120,7 +117,7 @@ export async function POST(request: NextRequest) {
     const userIdStr = String(userId);
 
     const body = await request.json();
-    const { type, amount, date, description, merchant, category, receiptUrl, document_path } = body;
+    const { type, amount, vatAmount: bodyVatAmount, date, description, merchant, category, receiptUrl, document_path, status } = body;
 
     // Use receiptUrl or document_path (support both field names)
     const finalReceiptUrl = receiptUrl || document_path || null;
@@ -139,9 +136,10 @@ export async function POST(request: NextRequest) {
     const finalType = type ? type.toUpperCase() : 'EXPENSE'; // Default to EXPENSE
     const finalAmount = amount ? parseFloat(amount) : 0; // Default to 0
     const finalMerchant = merchant || description || 'Draft Transaction'; // Default placeholder
-    const finalDescription = description || merchant || ''; // FIX #4: Empty string instead of "Pending review"
+    const finalDescription = description || merchant || ''; // Empty string instead of "Pending review"
     const finalCategory = category || 'Uncategorized';
     const finalDate = date ? new Date(date) : new Date();
+    const finalStatus = status === 'DRAFT' ? 'DRAFT' : 'COMPLETED';
 
     // Validate type (but only if provided)
     if (type && finalType !== "INCOME" && finalType !== "EXPENSE") {
@@ -151,9 +149,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate VAT amounts (handle 0 amount gracefully)
+    // Calculate VAT amounts — use AI-provided vatAmount if supplied, otherwise derive from total
     const vatRate = 0.18; // 18% VAT
-    const vatAmount = finalAmount > 0 ? finalAmount * vatRate / (1 + vatRate) : 0;
+    const vatAmount = bodyVatAmount
+      ? parseFloat(bodyVatAmount)
+      : finalAmount > 0 ? finalAmount * vatRate / (1 + vatRate) : 0;
     const netAmount = finalAmount > 0 ? finalAmount - vatAmount : 0;
 
     // Calculate RECOGNIZED VAT based on category rules (for expenses only)
@@ -181,14 +181,14 @@ export async function POST(request: NextRequest) {
         recognizedVatAmount: parseFloat(recognizedVatAmount.toFixed(2)),
         category: finalCategory,
         receiptUrl: finalReceiptUrl,
+        status: finalStatus,
       },
     });
 
     console.log(`✅ Created transaction ${transaction.id} (${isQuickDraft ? 'Draft' : 'Complete'})`);
 
     // Map to frontend format
-    // THE "MONEY TALKS" RULE: DRAFT if and only if amount === 0
-    const isDraft = transaction.amount === 0;
+    const isDraft = transaction.status === 'DRAFT';
 
     const mapped = {
       id: transaction.id,
@@ -204,7 +204,7 @@ export async function POST(request: NextRequest) {
       is_vat_deductible: true,
       document_path: transaction.receiptUrl,
       receiptUrl: transaction.receiptUrl,
-      status: isDraft ? 'DRAFT' : 'COMPLETED', // Money talks: amount > 0 = completed
+      status: isDraft ? 'DRAFT' : 'COMPLETED',
       created_at: transaction.createdAt.toISOString(),
     };
 
@@ -239,7 +239,7 @@ export async function PUT(request: NextRequest) {
     const userIdStr = String(userId);
 
     const body = await request.json();
-    const { id, amount, description, date, category, merchant, type } = body;
+    const { id, amount, description, date, category, merchant, type, status } = body;
 
     console.log(`📝 PUT /api/transactions - User: ${userIdStr}, ID: ${id}`);
 
@@ -332,6 +332,11 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    // Handle status
+    if (status === "COMPLETED" || status === "DRAFT") {
+      updates.status = status;
+    }
+
     // Update transaction
     const updatedTransaction = await prisma.transaction.update({
       where: { id: id },
@@ -341,8 +346,7 @@ export async function PUT(request: NextRequest) {
     console.log(`✅ Updated transaction ${id}`);
 
     // Map to frontend format
-    // THE "MONEY TALKS" RULE: DRAFT if and only if amount === 0
-    const isDraft = updatedTransaction.amount === 0;
+    const isDraft = updatedTransaction.status === 'DRAFT';
 
     const mapped = {
       id: updatedTransaction.id,
@@ -358,7 +362,7 @@ export async function PUT(request: NextRequest) {
       is_vat_deductible: true,
       document_path: updatedTransaction.receiptUrl,
       receiptUrl: updatedTransaction.receiptUrl,
-      status: isDraft ? 'DRAFT' : 'COMPLETED', // Money talks: amount > 0 = completed
+      status: isDraft ? 'DRAFT' : 'COMPLETED',
       created_at: updatedTransaction.createdAt.toISOString(),
     };
 

@@ -28,13 +28,13 @@
     "migrate-draft-status": "tsx lib/db-migration-draft-status.ts"
   },
   "dependencies": {
+    "@google/generative-ai": "0.24.1",
     "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.99.1",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^11.8.1",
     "jose": "^6.1.3",
     "lucide-react": "^0.468.0",
     "next": "^15.1.5",
-    "openai": "^6.17.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

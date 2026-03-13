@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-server";
-import { writeFile, mkdir } from "fs/promises";
+import { supabase } from "@/lib/supabase";
 import path from "path";
-import { existsSync } from "fs";
 
-// Allowed file types
 const ALLOWED_TYPES = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
 const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".pdf"];
-
-// Max file size: 5MB
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate user
     const userId = await requireAuth();
 
-    // Parse form data
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
@@ -44,32 +38,39 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create user-specific upload directory
-    const uploadDir = path.join(process.cwd(), "public", "uploads", userId.toString());
-
-    // Ensure directory exists
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
-    // Generate unique filename with timestamp
+    // Generate storage path: userId/timestamp-filename
     const timestamp = Date.now();
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileName = `${timestamp}-${sanitizedFileName}`;
-    const filePath = path.join(uploadDir, fileName);
+    const storagePath = `${userId}/${timestamp}-${sanitizedFileName}`;
 
-    // Convert file to buffer and save
+    // Upload to Supabase Storage
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
 
-    // Return public URL path
-    const publicPath = `/uploads/${userId}/${fileName}`;
+    const { error: uploadError } = await supabase.storage
+      .from("receipts")
+      .upload(storagePath, buffer, {
+        contentType: file.type,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Supabase upload error:", uploadError);
+      return NextResponse.json(
+        { success: false, error: "Failed to upload file to storage" },
+        { status: 500 }
+      );
+    }
+
+    // Get the public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from("receipts")
+      .getPublicUrl(storagePath);
 
     return NextResponse.json({
       success: true,
-      path: publicPath,
-      fileName: fileName,
+      path: publicUrl,
+      fileName: sanitizedFileName,
       fileSize: file.size,
       fileType: file.type,
     });
@@ -77,7 +78,6 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error("Error uploading file:", error);
 
-    // Handle authentication errors
     if (error.message === "Authentication required" || error.message.includes("authentication")) {
       return NextResponse.json(
         { success: false, error: "Not authenticated" },

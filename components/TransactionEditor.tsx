@@ -57,13 +57,6 @@ export default function TransactionEditor({
 
   const merchantInputRef = useRef<HTMLInputElement>(null);
 
-  // Helper function to convert file paths to API URLs
-  const getSafeUrl = (url: string | null | undefined) => {
-    if (!url) return null;
-    if (url.startsWith('/api')) return url;
-    return '/api/' + url.replace(/^\/+/, '');
-  };
-
   // Initialize form fields when transaction changes
   useEffect(() => {
     if (transaction) {
@@ -121,8 +114,6 @@ export default function TransactionEditor({
       if (result.success) {
         onSave();
         onClose();
-        // Force page reload to reflect new transaction in dashboard
-        window.location.reload();
       } else {
         alert("שגיאה בעדכון העסקה: " + result.error);
       }
@@ -177,8 +168,7 @@ export default function TransactionEditor({
   const isPDF = transaction.document_path?.toLowerCase().endsWith('.pdf');
   const isImage = transaction.document_path?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
 
-  // Get safe URLs for document display
-  const documentUrl = getSafeUrl(transaction.document_path);
+  const documentUrl = transaction.document_path || null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
