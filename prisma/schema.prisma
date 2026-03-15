@@ -59,6 +59,21 @@ model Transaction {
   type        String   // 'INCOME' or 'EXPENSE'
   status      String   @default("COMPLETED") // 'DRAFT' or 'COMPLETED'
   createdAt   DateTime @default(now())
+
+  // ═══════════════════════════════════════════════════════════════
+  // PERFORMANCE INDEXES
+  // ═══════════════════════════════════════════════════════════════
+  // Index #1: Primary query pattern - fetch user's transactions by date range and status
+  // Used by: /api/transactions GET (dashboard stats + transaction list)
+  @@index([userId, date, status], name: "idx_user_date_status")
+
+  // Index #2: Draft retrieval - fetch user's pending drafts
+  // Used by: DraftsInbox component
+  @@index([userId, status], name: "idx_user_status")
+
+  // Index #3: Export queries - fetch all transactions in a date range for a user
+  // Used by: /api/export (bi-monthly reports)
+  @@index([userId, date], name: "idx_user_date")
 }
 
 model ChatMessage {

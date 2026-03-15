@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Receipt, LogOut, User, TrendingUp, TrendingDown, DollarSign, Settings } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -43,6 +43,8 @@ export default function HomeContent() {
   const [selectedDraft, setSelectedDraft] = useState<Transaction | null>(null);
   // AI suggestions map: draft transaction id → suggested amount (populated by BulkUploadArea)
   const [aiSuggestionsMap, setAiSuggestionsMap] = useState<Record<string, number>>({});
+  // Currency warnings map: draft transaction id → warning message (populated by BulkUploadArea)
+  const [currencyWarningsMap, setCurrencyWarningsMap] = useState<Record<string, string>>({});
   const [stats, setStats] = useState<DashboardStats>({
     totalIncome: 0,
     totalExpenses: 0,
@@ -57,54 +59,23 @@ export default function HomeContent() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  // FIX #1: Auto-redirect to VAT PERIOD start (always odd month)
-  // Israeli VAT periods are bi-monthly: Jan-Feb, Mar-Apr, May-Jun, etc.
-  // Always redirect to the ODD month (period start)
-  useEffect(() => {
-    const monthParam = searchParams?.get("month");
-
-    if (!monthParam) {
-      // No month in URL - calculate current VAT period start month
-      const now = new Date();
-      const year = now.getFullYear();
-      const currentMonth = now.getMonth() + 1; // 1-12
-
-      // If current month is even (Feb, Apr, Jun, etc.), subtract 1 to get period start
-      // Jan-Feb period starts in Jan (1), Mar-Apr starts in Mar (3), etc.
-      const periodStartMonth = currentMonth % 2 === 0 ? currentMonth - 1 : currentMonth;
-      const periodStartMonthStr = String(periodStartMonth).padStart(2, '0');
-      const currentPeriod = `${year}-${periodStartMonthStr}`;
-
-      console.log(`📅 No month parameter found, redirecting to current VAT period: ${currentPeriod} (bi-monthly period for month ${currentMonth})`);
-
-      // Use replace to avoid adding to browser history
-      router.replace(`/?month=${currentPeriod}`);
-    } else {
-      // Month exists in URL - check if it's even (e.g., 2026-02)
-      const [year, month] = monthParam.split("-");
-      const monthNum = parseInt(month);
-
-      // If even month, redirect to the odd month before it
-      if (monthNum % 2 === 0) {
-        const oddMonth = monthNum - 1;
-        const oddMonthStr = String(oddMonth).padStart(2, '0');
-        const correctedPeriod = `${year}-${oddMonthStr}`;
-
-        console.log(`📅 Even month detected (${monthParam}), redirecting to period start: ${correctedPeriod}`);
-        router.replace(`/?month=${correctedPeriod}`);
-      }
-    }
-  }, [searchParams, router]);
-
-  // Fetch and calculate stats from COMPLETED transactions only
-  // Filter by date range if month query param is present
-  useEffect(() => {
-    fetchStats();
-  }, [refreshTrigger, searchParams]);
-
-  const fetchStats = async () => {
+  // ═══════════════════════════════════════════════════════════════
+  // PERFORMANCE OPTIMIZED: Fetch stats with stable reference
+  // RACE CONDITION PROTECTED: Uses AbortController for cancellation
+  // ═══════════════════════════════════════════════════════════════
+  const fetchStats = useCallback(async (signal?: AbortSignal) => {
     try {
       setLoadingStats(true);
+
+      // Clear old stats immediately to prevent ghosting
+      setStats({
+        totalIncome: 0,
+        totalExpenses: 0,
+        netProfit: 0,
+        vatToPay: 0,
+        incomeVAT: 0,
+        expenseVAT: 0,
+      });
 
       // Get date range from URL query params
       const monthParam = searchParams?.get("month");
@@ -163,7 +134,14 @@ export default function HomeContent() {
       const apiUrl = `/api/transactions${query ? `?${query}` : ''}`;
       console.log(`🔍 Fetching transactions from: ${apiUrl}`);
 
-      const response = await fetch(apiUrl);
+      const response = await fetch(apiUrl, { signal });
+
+      // If request was aborted, exit early
+      if (signal?.aborted) {
+        console.log("⚠️ Fetch aborted - period changed");
+        return;
+      }
+
       const result = await response.json();
 
       console.log(`📥 API Response:`, {
@@ -232,6 +210,12 @@ export default function HomeContent() {
         });
       }
     } catch (error) {
+      // Ignore abort errors (they're intentional when period changes)
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log("⚠️ Fetch cancelled - period changed");
+        return;
+      }
+
       console.error("Error fetching stats:", error);
       // Set to 0 on error
       setStats({
@@ -245,7 +229,70 @@ export default function HomeContent() {
     } finally {
       setLoadingStats(false);
     }
-  };
+  }, [searchParams]); // Stable dependency - only searchParams
+
+  // ═══════════════════════════════════════════════════════════════
+  // UNIFIED MOUNT LOGIC: Handle period redirect + stats fetch
+  // RACE CONDITION PROTECTED: Cancels previous fetch when period changes
+  // ═══════════════════════════════════════════════════════════════
+  useEffect(() => {
+    const monthParam = searchParams?.get("month");
+
+    // Create AbortController for this fetch
+    const abortController = new AbortController();
+
+    // ═══════════════════════════════════════════════════════════════
+    // ANTI-GHOSTING FIX: Clear old stats immediately when month changes
+    // ═══════════════════════════════════════════════════════════════
+    setLoadingStats(true);
+
+    // Check if we need to redirect to correct period
+    let needsRedirect = false;
+    let targetMonth = "";
+
+    if (!monthParam) {
+      // No month in URL - calculate current VAT period start month
+      const now = new Date();
+      const year = now.getFullYear();
+      const currentMonth = now.getMonth() + 1; // 1-12
+
+      // If current month is even (Feb, Apr, Jun, etc.), subtract 1 to get period start
+      // Jan-Feb period starts in Jan (1), Mar-Apr starts in Mar (3), etc.
+      const periodStartMonth = currentMonth % 2 === 0 ? currentMonth - 1 : currentMonth;
+      const periodStartMonthStr = String(periodStartMonth).padStart(2, '0');
+      targetMonth = `${year}-${periodStartMonthStr}`;
+
+      console.log(`📅 No month parameter found, redirecting to current VAT period: ${targetMonth} (bi-monthly period for month ${currentMonth})`);
+      needsRedirect = true;
+    } else {
+      // Month exists in URL - check if it's even (e.g., 2026-02)
+      const [year, month] = monthParam.split("-");
+      const monthNum = parseInt(month);
+
+      // If even month, redirect to the odd month before it
+      if (monthNum % 2 === 0) {
+        const oddMonth = monthNum - 1;
+        const oddMonthStr = String(oddMonth).padStart(2, '0');
+        targetMonth = `${year}-${oddMonthStr}`;
+
+        console.log(`📅 Even month detected (${monthParam}), redirecting to period start: ${targetMonth}`);
+        needsRedirect = true;
+      }
+    }
+
+    if (needsRedirect) {
+      // Redirect to correct period (this will trigger this effect again with correct month)
+      router.replace(`/?month=${targetMonth}`);
+    } else {
+      // Period is correct - fetch stats immediately with abort signal
+      fetchStats(abortController.signal);
+    }
+
+    // Cleanup: abort fetch if effect runs again (period changed)
+    return () => {
+      abortController.abort();
+    };
+  }, [searchParams, router, fetchStats, refreshTrigger]);
 
   const handleReviewDraft = (draft: Transaction) => {
     setSelectedDraft(draft);
@@ -255,6 +302,11 @@ export default function HomeContent() {
   // Lookup AI-suggested amount for a draft (keyed by string id)
   const getAiSuggestedAmount = (draftId: string | number): number | undefined => {
     return aiSuggestionsMap[String(draftId)];
+  };
+
+  // Lookup currency warning for a draft (keyed by string id)
+  const getCurrencyWarning = (draftId: string | number): string | undefined => {
+    return currencyWarningsMap[String(draftId)];
   };
 
   const handleEditorClose = () => {
@@ -423,15 +475,16 @@ export default function HomeContent() {
 
         {/* Bulk Upload Area */}
         <BulkUploadArea
-          onUploadComplete={(newSuggestions) =>
-            setAiSuggestionsMap((prev) => ({ ...prev, ...newSuggestions }))
-          }
+          onUploadComplete={(newSuggestions, currencyWarnings) => {
+            setAiSuggestionsMap((prev) => ({ ...prev, ...newSuggestions }));
+            setCurrencyWarningsMap((prev) => ({ ...prev, ...currencyWarnings }));
+          }}
           onRefreshNeeded={triggerRefresh}
         />
 
         {/* Drafts Inbox - Pending Receipts */}
         <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
-          <DraftsInbox onReviewDraft={handleReviewDraft} refreshTrigger={refreshTrigger} />
+          <DraftsInbox onReviewDraft={handleReviewDraft} onRefreshNeeded={triggerRefresh} refreshTrigger={refreshTrigger} />
         </div>
 
         {/* Transaction Manager - Only COMPLETED transactions */}
@@ -445,6 +498,7 @@ export default function HomeContent() {
         onClose={handleEditorClose}
         onSave={handleEditorSave}
         aiSuggestedAmount={selectedDraft ? getAiSuggestedAmount(selectedDraft.id) : undefined}
+        currencyWarning={selectedDraft ? getCurrencyWarning(selectedDraft.id) : undefined}
       />
 
       {/* AI Chat Assistant */}

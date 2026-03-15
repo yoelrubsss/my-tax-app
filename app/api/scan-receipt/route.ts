@@ -9,6 +9,8 @@ import * as path from "path";
 const CATEGORY_IDS = [
   "office-equipment",
   "software",
+  "software-foreign",
+  "software-local",
   "professional-services",
   "vehicle-fuel",
   "vehicle-maintenance",
@@ -138,7 +140,7 @@ CRITICAL ACCURACY RULES — READ BEFORE ANALYZING:
 - NEVER guess, invent, or hallucinate any data. Do not invent numbers that are not present in the document.
 - If the text is blurry, faded, or partially visible for merchant name or date, return null for those fields.
 - Do not infer the merchant name from logos, colors, or context — only from clearly legible text.
-- For amounts: look for keywords like "סה"כ לתשלום", "סה"כ", "Total", or "מע"מ". Confidently extract the numeric values associated with them. Ignore currency symbols like ₪ or $. Do your best to find the final total and VAT — only return null for amounts if no numeric value can be found at all.
+- For amounts: look for keywords like "סה"כ לתשלום", "סה"כ", "Total", or "מע"מ". Confidently extract the numeric values associated with them. Extract the numeric amount but also DETECT the currency symbol. Do your best to find the final total and VAT — only return null for amounts if no numeric value can be found at all.
 
 Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
 
@@ -147,14 +149,17 @@ Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
   "date": "YYYY-MM-DD format (string or null if not clearly legible)",
   "totalAmount": total including VAT as number (or null if no numeric value found),
   "vatAmount": VAT amount shown on receipt as number, or calculate as totalAmount * 0.18 / 1.18 (or null if not found),
+  "detectedCurrency": "ILS" | "USD" | "EUR" | "GBP" | null (detect from symbols like ₪, $, €, £ or text like "USD", "EUR", "ILS", "NIS"),
   "suggestedCategory": one of exactly: ${CATEGORY_IDS.join(", ")} (or null),
   "confidence": "high" | "medium" | "low"
 }
 
 Additional rules:
-- totalAmount includes VAT (18% Israeli VAT rate)
+- totalAmount includes VAT (18% Israeli VAT rate for ILS receipts)
 - If the receipt shows net + VAT separately, sum them for totalAmount
-- For category, pick the best match from the list or null if unsure`;
+- For category, pick the best match from the list or null if unsure
+- ALWAYS detect the currency: look for ₪ or "ILS" or "NIS" = "ILS", $ or "USD" = "USD", € or "EUR" = "EUR", £ or "GBP" = "GBP"
+- If no clear currency symbol, return null for detectedCurrency`;
 
     let content = "";
 
@@ -295,6 +300,11 @@ Additional rules:
       });
     }
 
+    const detectedCurrency =
+      typeof parsed.detectedCurrency === "string"
+        ? parsed.detectedCurrency.toUpperCase()
+        : null;
+
     const suggestions = {
       merchant:
         typeof parsed.merchant === "string" ? parsed.merchant.trim() : null,
@@ -311,6 +321,7 @@ Additional rules:
         typeof parsed.vatAmount === "number" && parsed.vatAmount > 0
           ? Math.round(parsed.vatAmount * 100) / 100
           : null,
+      detectedCurrency,
       category:
         typeof parsed.suggestedCategory === "string" &&
         CATEGORY_IDS.includes(parsed.suggestedCategory)
@@ -323,8 +334,14 @@ Additional rules:
         : "low",
     };
 
+    // Add currency warning if foreign currency detected
+    const currencyWarning =
+      detectedCurrency && detectedCurrency !== "ILS"
+        ? `מטבע זר זוהה: ${detectedCurrency}. יש להמיר לשקלים לפני השמירה.`
+        : null;
+
     console.log("✅ scan-receipt suggestions:", suggestions);
-    return NextResponse.json({ success: true, suggestions });
+    return NextResponse.json({ success: true, suggestions, currencyWarning });
   } catch (err: unknown) {
     console.error("scan-receipt unexpected error:", err);
     return NextResponse.json(

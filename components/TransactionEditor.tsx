@@ -37,6 +37,7 @@ interface TransactionEditorProps {
   onClose: () => void;
   onSave: () => void;
   aiSuggestedAmount?: number;
+  currencyWarning?: string;
 }
 
 export default function TransactionEditor({
@@ -45,6 +46,7 @@ export default function TransactionEditor({
   onClose,
   onSave,
   aiSuggestedAmount,
+  currencyWarning,
 }: TransactionEditorProps) {
   const [merchant, setMerchant] = useState("");
   const [amount, setAmount] = useState("");
@@ -297,6 +299,15 @@ export default function TransactionEditor({
                   <span>הפרטים מולאו אוטומטית על ידי AI — אנא בדוק ואשר</span>
                 </div>
               )}
+
+              {/* Currency Warning */}
+              {currencyWarning && (
+                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg px-4 py-3 flex items-center gap-3 text-sm">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                  <span className="text-amber-900 font-semibold">{currencyWarning}</span>
+                </div>
+              )}
+
               {/* Transaction Type Selector */}
               <div className="bg-white rounded-lg p-4 border border-gray-200">
                 <label className="text-sm font-medium text-gray-700 mb-2 block">

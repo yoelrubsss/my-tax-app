@@ -34,7 +34,7 @@ interface AiSuggestions {
 }
 
 interface BulkUploadAreaProps {
-  onUploadComplete: (newSuggestions: Record<string, number>) => void;
+  onUploadComplete: (newSuggestions: Record<string, number>, currencyWarnings: Record<string, string>) => void;
   onRefreshNeeded: () => void;
 }
 
@@ -70,7 +70,8 @@ export default function BulkUploadArea({
   async function processOnefile(
     file: File,
     id: string,
-    newSuggestions: Record<string, number>
+    newSuggestions: Record<string, number>,
+    currencyWarnings: Record<string, string>
   ): Promise<boolean> {
     // ── Step 1: Upload ──────────────────────────────────────────
     updateItem(id, "uploading", "מעלה לענן...");
@@ -112,6 +113,7 @@ export default function BulkUploadArea({
 
     let aiSuggestions: AiSuggestions | null = null;
     let scanNote = "";
+    let currencyWarningText: string | null = null;
 
     try {
       const scanRes = await fetch("/api/scan-receipt", {
@@ -123,6 +125,7 @@ export default function BulkUploadArea({
 
       if (scanData.success && scanData.suggestions) {
         aiSuggestions = scanData.suggestions as AiSuggestions;
+        currencyWarningText = scanData.currencyWarning || null;
       } else if (scanData.reason) {
         scanNote = scanData.reason as string;
       } else if (!scanData.success && scanData.error) {
@@ -163,9 +166,12 @@ export default function BulkUploadArea({
         return false;
       }
 
-      // Store AI-suggested amount for the TransactionEditor
+      // Store AI-suggested amount and currency warning for the TransactionEditor
       if (aiSuggestions?.totalAmount && createData.data?.id) {
         newSuggestions[String(createData.data.id)] = aiSuggestions.totalAmount;
+      }
+      if (currencyWarningText && createData.data?.id) {
+        currencyWarnings[String(createData.data.id)] = currencyWarningText;
       }
 
       if (aiSuggestions) {
@@ -207,14 +213,15 @@ export default function BulkUploadArea({
 
       // Process all files in parallel
       const newSuggestions: Record<string, number> = {};
+      const currencyWarnings: Record<string, string> = {};
       const results = await Promise.all(
-        valid.map((file, i) => processOnefile(file, newItems[i].id, newSuggestions))
+        valid.map((file, i) => processOnefile(file, newItems[i].id, newSuggestions, currencyWarnings))
       );
 
       const successCount = results.filter(Boolean).length;
 
-      if (Object.keys(newSuggestions).length > 0) {
-        onUploadComplete(newSuggestions);
+      if (Object.keys(newSuggestions).length > 0 || Object.keys(currencyWarnings).length > 0) {
+        onUploadComplete(newSuggestions, currencyWarnings);
       }
       if (successCount > 0) {
         onRefreshNeeded();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FileText, AlertCircle, Eye, Calendar, Clock, CheckCircle } from "lucide-react";
+import { FileText, AlertCircle, Eye, Clock, CheckCircle, Trash2 } from "lucide-react";
 
 interface Transaction {
   id: string | number; // Support both CUID and legacy numeric IDs
@@ -19,10 +19,11 @@ interface Transaction {
 
 interface DraftsInboxProps {
   onReviewDraft: (transaction: Transaction) => void;
+  onRefreshNeeded: () => void;
   refreshTrigger?: number;
 }
 
-export default function DraftsInbox({ onReviewDraft, refreshTrigger }: DraftsInboxProps) {
+export default function DraftsInbox({ onReviewDraft, onRefreshNeeded, refreshTrigger }: DraftsInboxProps) {
   const [drafts, setDrafts] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +56,36 @@ export default function DraftsInbox({ onReviewDraft, refreshTrigger }: DraftsInb
       setDrafts([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string | number) => {
+    // Confirmation dialog
+    if (!window.confirm("האם אתה בטוח שברצונך למחוק קבלה זו?")) {
+      return;
+    }
+
+    try {
+      console.log(`🗑️ Deleting draft transaction: ${id}`);
+      const response = await fetch(`/api/transactions/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete transaction");
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log("✅ Draft deleted successfully");
+        onRefreshNeeded(); // Trigger parent to refresh
+      } else {
+        throw new Error(result.error || "Failed to delete");
+      }
+    } catch (error) {
+      console.error("❌ Error deleting draft:", error);
+      alert("שגיאה במחיקת הקבלה. נסה שוב.");
     }
   };
 
@@ -213,14 +244,26 @@ export default function DraftsInbox({ onReviewDraft, refreshTrigger }: DraftsInb
                     </p>
                   )}
 
-                  {/* Review Button */}
-                  <button
-                    onClick={() => onReviewDraft(draft)}
-                    className="w-full mt-3 bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
-                  >
-                    <Eye className="w-4 h-4" />
-                    מלא פרטים
-                  </button>
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-[1fr_auto] gap-2 mt-3">
+                    <button
+                      onClick={() => onReviewDraft(draft)}
+                      className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
+                    >
+                      <Eye className="w-4 h-4" />
+                      מלא פרטים
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(draft.id);
+                      }}
+                      className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center"
+                      title="מחק קבלה"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

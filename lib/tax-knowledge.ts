@@ -242,11 +242,11 @@ export const TAX_CATEGORIES: TaxCategory[] = [
   },
   {
     id: "software",
-    label: "תוכנות ומנויים דיגיטליים",
+    label: "תוכנות ומנויים דיגיטליים (כללי)",
     vatPercentage: 1.0, // Usually no VAT (foreign services)
     incomeTaxRecognition: 1.0, // 100% recognized
     warning:
-      'מנויים זרים (SaaS) לרוב ללא מע"מ ישראלי. למס הכנסה ההוצאה מוכרת במלואה. מוצרי תוכנה מקומיים כן כוללים מע"מ.',
+      'קטגוריה כללית לתוכנות ומנויים. למס הכנסה ההוצאה מוכרת במלואה. בחר קטגוריה ספציפית (מקומי/זר) לניכוי מע"מ מדויק.',
     legalRefUrl: "https://www.nevo.co.il/law_html/law01/271_005.htm#med0",
     matchKeywords: [
       "תוכנה",
@@ -255,13 +255,51 @@ export const TAX_CATEGORIES: TaxCategory[] = [
       "saas",
       "software",
       "cloud",
+      "אפליקציה",
+    ],
+  },
+  {
+    id: "software-foreign",
+    label: "תוכנות ומנויים דיגיטליים (זר)",
+    vatPercentage: 0, // 0% VAT - Foreign/Eilat rule
+    incomeTaxRecognition: 1.0, // 100% recognized
+    warning:
+      'מנויים זרים (SaaS מחו"ל) ללא מע"מ ישראלי לפי חוק. למס הכנסה ההוצאה מוכרת במלואה. דוגמאות: Adobe, Microsoft 365, Zoom, Slack, Dropbox, AWS.',
+    legalRefUrl: "https://www.nevo.co.il/law_html/law01/271_005.htm#med0",
+    matchKeywords: [
       "adobe",
       "microsoft",
       "zoom",
       "slack",
       "dropbox",
       "canva",
-      "אפליקציה",
+      "aws",
+      "google cloud",
+      "github",
+      "netflix",
+      "spotify",
+      "stripe",
+      "paypal",
+      "foreign",
+      "חו״ל",
+      "זר",
+    ],
+  },
+  {
+    id: "software-local",
+    label: "תוכנות ומנויים דיגיטליים (מקומי)",
+    vatPercentage: 1.0, // 100% VAT deductible
+    incomeTaxRecognition: 1.0, // 100% recognized
+    warning:
+      'מוצרי תוכנה מקומיים (ישראל) כוללים מע"מ 18% ולכן ניתן לנכות את המע"מ במלואו. למס הכנסה ההוצאה מוכרת במלואה.',
+    legalRefUrl: "https://www.nevo.co.il/law_html/law01/271_005.htm#med0",
+    matchKeywords: [
+      "ישראלי",
+      "מקומי",
+      "ישראל",
+      "local",
+      "israel",
+      "israeli",
     ],
   },
   {

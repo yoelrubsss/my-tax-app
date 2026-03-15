@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Clock, Pencil } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Clock, Pencil, Download } from "lucide-react";
 import FileUpload from "./FileUpload";
 import EditTransactionModal from "./EditTransactionModal";
 import {
@@ -285,6 +285,62 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
     }
   };
 
+  const handleDownloadCSV = async () => {
+    try {
+      // Calculate the month parameter from current period
+      // Period 1 = Jan-Feb (start month 1), Period 2 = Mar-Apr (start month 3), etc.
+      const startMonth = (currentPeriod.periodIndex - 1) * 2 + 1;
+      const monthStr = `${currentPeriod.year}-${String(startMonth).padStart(2, '0')}`;
+
+      // Fetch bi-monthly VAT report from export API
+      const response = await fetch(`/api/export?month=${monthStr}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(`שגיאה ביצוא: ${errorData.error || 'שגיאה לא ידועה'}`);
+        return;
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // EXTRACT FILENAME FROM CONTENT-DISPOSITION HEADER
+      // ═══════════════════════════════════════════════════════════════
+      let filename = `vat_report_${currentPeriod.year}_period_${currentPeriod.periodIndex}.csv`; // Fallback
+
+      const contentDisposition = response.headers.get('Content-Disposition');
+      if (contentDisposition) {
+        // Try to extract filename*=UTF-8'' (RFC 5987 encoded Hebrew filename)
+        const filenameStarMatch = contentDisposition.match(/filename\*=UTF-8''(.+?)(?:;|$)/i);
+        if (filenameStarMatch) {
+          filename = decodeURIComponent(filenameStarMatch[1]);
+        } else {
+          // Fallback to filename= (ASCII)
+          const filenameMatch = contentDisposition.match(/filename="?(.+?)"?(?:;|$)/i);
+          if (filenameMatch) {
+            filename = filenameMatch[1];
+          }
+        }
+      }
+
+      // Get the CSV content
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+
+      // Create a temporary link and trigger download with extracted filename
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename; // Use extracted professional filename
+      document.body.appendChild(a);
+      a.click();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Error downloading VAT report:", error);
+      alert("שגיאה בהורדת דוח המע\"מ");
+    }
+  };
+
   // Display ALL transactions for the selected period (no limit)
   const displayedTransactions = transactions;
 
@@ -316,6 +372,16 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                 aria-label="תקופה הבאה"
               >
                 <ChevronLeft className="w-5 h-5 text-blue-600" />
+              </button>
+
+              {/* Download Bi-Monthly VAT Report Button */}
+              <button
+                onClick={handleDownloadCSV}
+                className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 rounded-md transition-colors text-sm font-medium mr-2"
+                title="הורד דוח מע״מ דו-חודשי מקיף (הכנסות, הוצאות וסיכום)"
+              >
+                <Download className="w-4 h-4" />
+                <span className="hidden md:inline">הורד דוח דו-חודשי</span>
               </button>
             </div>
 
