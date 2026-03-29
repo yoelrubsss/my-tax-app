@@ -2,33 +2,16 @@
  * ✅ WHATSAPP WEBHOOK INTEGRATION
  *
  * Handles incoming WhatsApp messages with receipt images.
- * Processes images with Gemini AI and creates draft transactions.
+ * Uses shared receipt-processor service for unified flow with web uploads.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { processReceipt } from "@/lib/receipt-processor";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
-
-const CATEGORY_IDS = [
-  "office-equipment",
-  "software",
-  "professional-services",
-  "vehicle-fuel",
-  "communication",
-  "meals-entertainment",
-  "travel",
-  "rent",
-  "utilities",
-  "education",
-  "marketing",
-  "insurance",
-  "gifts",
-  "other",
-];
 
 interface WhatsAppMessage {
   from: string;
@@ -70,7 +53,7 @@ export async function GET(request: NextRequest) {
     token,
     challenge,
     expectedToken: WHATSAPP_VERIFY_TOKEN,
-    tokenMatches: token === WHATSAPP_VERIFY_TOKEN
+    tokenMatches: token === WHATSAPP_VERIFY_TOKEN,
   });
 
   // Check if verification token matches
@@ -80,8 +63,8 @@ export async function GET(request: NextRequest) {
     return new NextResponse(challenge, {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
-      }
+        "Content-Type": "text/plain",
+      },
     });
   }
 
@@ -131,7 +114,6 @@ export async function POST(request: NextRequest) {
 
     // Always return 200 to acknowledge receipt
     return NextResponse.json({ status: "ok" }, { status: 200 });
-
   } catch (error) {
     console.error("❌ WhatsApp webhook error:", error);
     // Always return 200 to prevent WhatsApp from retrying
@@ -140,7 +122,9 @@ export async function POST(request: NextRequest) {
 }
 
 async function processWhatsAppMessage(message: WhatsAppMessage) {
-  console.log(`📱 Processing message from ${message.from}, type: ${message.type}`);
+  console.log(
+    `📱 Processing message from ${message.from}, type: ${message.type}`
+  );
 
   // Only process image messages
   if (message.type !== "image" || !message.image) {
@@ -162,37 +146,50 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
   console.log(`✅ Found user: ${user.email} (${user.id})`);
 
   // Download image from WhatsApp
-  const imageBuffer = await downloadWhatsAppMedia(message.image.id);
-  if (!imageBuffer) {
+  const downloadResult = await downloadWhatsAppMedia(message.image.id);
+  if (!downloadResult.success || !downloadResult.buffer) {
     console.error("❌ Failed to download image from WhatsApp");
     return;
   }
 
-  console.log(`📥 Downloaded image: ${imageBuffer.length} bytes`);
+  console.log(`📥 Downloaded image: ${downloadResult.buffer.length} bytes`);
 
-  // Process with Gemini
-  const scanResult = await processImageWithGemini(imageBuffer, message.image.mime_type);
+  // Process receipt using shared service (upload + Gemini)
+  const fileName = `whatsapp-${message.id}.jpg`;
+  const processingResult = await processReceipt(
+    downloadResult.buffer,
+    user.id,
+    fileName,
+    message.image.mime_type
+  );
 
-  if (!scanResult) {
-    console.log("⚠️ Gemini processing failed or returned no results");
-    // Create a basic draft even if Gemini fails
-    await createDraftTransaction(user.id, null, null);
+  if (!processingResult.success) {
+    console.error("❌ Receipt processing failed:", processingResult.error);
     return;
   }
 
-  console.log("🤖 Gemini scan result:", scanResult);
+  console.log("✅ Receipt processed:", {
+    url: processingResult.receiptUrl,
+    scan: processingResult.scanResult,
+  });
 
-  // Create draft transaction with Gemini suggestions
-  await createDraftTransaction(user.id, scanResult, null);
+  // Create draft transaction with processed data
+  await createDraftTransaction(
+    user.id,
+    processingResult.receiptUrl,
+    processingResult.scanResult
+  );
 
   console.log(`✅ Draft transaction created for user ${user.email}`);
 }
 
-async function downloadWhatsAppMedia(mediaId: string): Promise<Buffer | null> {
+async function downloadWhatsAppMedia(
+  mediaId: string
+): Promise<{ success: boolean; buffer?: Buffer; error?: string }> {
   try {
     if (!WHATSAPP_TOKEN) {
       console.error("❌ WHATSAPP_TOKEN not configured");
-      return null;
+      return { success: false, error: "Token not configured" };
     }
 
     // Step 1: Get media URL
@@ -206,8 +203,13 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<Buffer | null> {
     );
 
     if (!mediaInfoResponse.ok) {
-      console.error(`❌ Failed to get media info: ${mediaInfoResponse.status}`);
-      return null;
+      console.error(
+        `❌ Failed to get media info: ${mediaInfoResponse.status}`
+      );
+      return {
+        success: false,
+        error: `Failed to get media info: ${mediaInfoResponse.status}`,
+      };
     }
 
     const mediaInfo = await mediaInfoResponse.json();
@@ -215,7 +217,7 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<Buffer | null> {
 
     if (!mediaUrl) {
       console.error("❌ No media URL in response");
-      return null;
+      return { success: false, error: "No media URL" };
     }
 
     console.log(`📡 Downloading from: ${mediaUrl}`);
@@ -229,122 +231,42 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<Buffer | null> {
 
     if (!mediaResponse.ok) {
       console.error(`❌ Failed to download media: ${mediaResponse.status}`);
-      return null;
+      return {
+        success: false,
+        error: `Failed to download: ${mediaResponse.status}`,
+      };
     }
 
     const arrayBuffer = await mediaResponse.arrayBuffer();
-    return Buffer.from(arrayBuffer);
-
+    return { success: true, buffer: Buffer.from(arrayBuffer) };
   } catch (error) {
     console.error("❌ Error downloading WhatsApp media:", error);
-    return null;
-  }
-}
-
-async function processImageWithGemini(
-  imageBuffer: Buffer,
-  mimeType: string
-): Promise<{
-  merchant: string | null;
-  date: string | null;
-  totalAmount: number | null;
-  vatAmount: number | null;
-  category: string | null;
-} | null> {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("❌ GEMINI_API_KEY not configured");
-      return null;
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-    const prompt = `You are a strict Israeli VAT receipt scanner for an Authorized Dealer (עוסק מורשה).
-
-CRITICAL ACCURACY RULES — READ BEFORE ANALYZING:
-- NEVER guess, invent, or hallucinate any data. Do not invent numbers that are not present in the document.
-- If the text is blurry, faded, or partially visible for merchant name or date, return null for those fields.
-- Do not infer the merchant name from logos, colors, or context — only from clearly legible text.
-- For amounts: look for keywords like "סה"כ לתשלום", "סה"כ", "Total", or "מע"מ". Confidently extract the numeric values associated with them.
-
-Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
-
-{
-  "merchant": "business name exactly as printed (string or null if not clearly legible)",
-  "date": "YYYY-MM-DD format (string or null if not clearly legible)",
-  "totalAmount": total including VAT as number (or null if no numeric value found),
-  "vatAmount": VAT amount shown on receipt as number, or calculate as totalAmount * 0.18 / 1.18 (or null if not found),
-  "suggestedCategory": one of exactly: ${CATEGORY_IDS.join(", ")} (or null),
-  "confidence": "high" | "medium" | "low"
-}
-
-Additional rules:
-- totalAmount includes VAT (18% Israeli VAT rate)
-- If the receipt shows net + VAT separately, sum them for totalAmount
-- For category, pick the best match from the list or null if unsure`;
-
-    const base64Data = imageBuffer.toString("base64");
-
-    const result = await model.generateContent([
-      { text: prompt },
-      { inlineData: { mimeType, data: base64Data } },
-    ]);
-
-    const content = result.response.text().trim();
-    console.log(`🤖 Gemini response: ${content.slice(0, 200)}`);
-
-    // Extract JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("❌ No JSON found in Gemini response");
-      return null;
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
     return {
-      merchant: typeof parsed.merchant === "string" ? parsed.merchant.trim() : null,
-      date: typeof parsed.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(parsed.date)
-        ? parsed.date
-        : null,
-      totalAmount: typeof parsed.totalAmount === "number" && parsed.totalAmount > 0
-        ? Math.round(parsed.totalAmount * 100) / 100
-        : null,
-      vatAmount: typeof parsed.vatAmount === "number" && parsed.vatAmount > 0
-        ? Math.round(parsed.vatAmount * 100) / 100
-        : null,
-      category: typeof parsed.suggestedCategory === "string" &&
-        CATEGORY_IDS.includes(parsed.suggestedCategory)
-        ? parsed.suggestedCategory
-        : null,
+      success: false,
+      error: error instanceof Error ? error.message : "Download failed",
     };
-
-  } catch (error) {
-    console.error("❌ Gemini processing error:", error);
-    return null;
   }
 }
 
 async function createDraftTransaction(
   userId: string,
+  receiptUrl: string | null,
   scanResult: {
     merchant: string | null;
     date: string | null;
     totalAmount: number | null;
     vatAmount: number | null;
     category: string | null;
-  } | null,
-  receiptUrl: string | null
+  } | null
 ) {
   try {
     // Calculate amounts based on scan result
     const totalAmount = scanResult?.totalAmount || 0;
-    const vatAmount = scanResult?.vatAmount || (totalAmount * 0.18 / 1.18);
+    const vatAmount =
+      scanResult?.vatAmount || (totalAmount > 0 ? totalAmount * 0.18 / 1.18 : 0);
     const netAmount = totalAmount - vatAmount;
 
-    // Create draft transaction
+    // Create draft transaction (same as manual upload flow)
     const transaction = await prisma.transaction.create({
       data: {
         userId,
@@ -355,18 +277,17 @@ async function createDraftTransaction(
         vatRate: 0.18,
         vatAmount,
         netAmount,
-        recognizedVatAmount: 0, // Will be calculated when category is selected
+        recognizedVatAmount: 0, // Will be calculated when category is confirmed
         category: scanResult?.category || "other",
         type: "EXPENSE",
-        status: "DRAFT", // Mark as draft
-        receiptUrl,
+        status: "DRAFT", // Mark as draft to appear in DraftsInbox
+        receiptUrl, // Supabase Storage URL
         isRecognized: true,
       },
     });
 
     console.log(`✅ Draft transaction created: ${transaction.id}`);
     return transaction;
-
   } catch (error) {
     console.error("❌ Error creating draft transaction:", error);
     throw error;
