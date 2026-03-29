@@ -581,3 +581,5 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 3. Check browser console and terminal logs
 
 **Remember:** `prisma/schema.prisma` is the SINGLE SOURCE OF TRUTH. All other database logic should be considered deprecated.
+
+# Test Sync: 03/29/2026 21:12:25
