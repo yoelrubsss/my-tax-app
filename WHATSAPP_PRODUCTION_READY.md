@@ -123,7 +123,9 @@ if (!user) {
 
 1. User opens WhatsApp on their phone (or clicks link from Settings page)
 2. Sends message to bot number: **+1 (555) 142-6760** (https://wa.me/15551426760)
-3. Attaches receipt image (as photo, not document)
+3. Attaches receipt:
+   - **Image:** Send as photo (JPEG, PNG, WebP)
+   - **PDF:** Send as document (application/pdf)
 4. Sends message
 
 ### Step 3: Automatic Processing
@@ -157,10 +159,11 @@ if (!user) {
 
 ### Test 3: WhatsApp Receipt Flow
 - [ ] Link phone number in Settings
-- [ ] Send receipt image to bot from linked number
+- [ ] Send receipt image (JPEG/PNG) to bot from linked number
+- [ ] Send receipt PDF to bot from linked number
 - [ ] Check Vercel logs for processing steps ([WEBHOOK], [PROCESS], [GEMINI], [CREATE_DRAFT])
 - [ ] Draft appears in DraftsInbox with extracted data
-- [ ] Receipt image visible when clicking on draft
+- [ ] Receipt image/PDF visible when clicking on draft
 
 ### Test 4: Multiple Users
 - [ ] User A links phone `052-111-1111`
@@ -171,8 +174,10 @@ if (!user) {
 
 ### Test 5: Edge Cases
 - [ ] Send from unlinked number → No draft created, warning logged
-- [ ] Send non-image message → Ignored
+- [ ] Send text message → Ignored
+- [ ] Send non-PDF document (e.g., .docx) → Ignored with warning
 - [ ] Send blurry image → Draft created with defaults (merchant="Draft Transaction")
+- [ ] Send multi-page PDF → First page processed for receipt data
 - [ ] Clear phone in Settings → Can no longer send receipts
 
 ---

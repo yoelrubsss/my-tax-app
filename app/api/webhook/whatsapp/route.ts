@@ -24,6 +24,13 @@ interface WhatsAppMessage {
     sha256: string;
     id: string;
   };
+  document?: {
+    caption?: string;
+    mime_type: string;
+    sha256: string;
+    id: string;
+    filename?: string;
+  };
 }
 
 interface WhatsAppWebhookEntry {
@@ -126,9 +133,38 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
     `📱 Processing message from ${message.from}, type: ${message.type}`
   );
 
-  // Only process image messages
-  if (message.type !== "image" || !message.image) {
-    console.log("⚠️ Not an image message, ignoring");
+  // Determine if this is a receipt we can process
+  let mediaId: string | null = null;
+  let mimeType: string | null = null;
+  let fileName: string | null = null;
+
+  if (message.type === "image" && message.image) {
+    mediaId = message.image.id;
+    mimeType = message.image.mime_type;
+    fileName = `whatsapp-${message.id}.jpg`;
+    console.log(`📷 Image message detected: ${mimeType}`);
+  } else if (message.type === "document" && message.document) {
+    // Only process PDF documents
+    if (message.document.mime_type === "application/pdf") {
+      mediaId = message.document.id;
+      mimeType = message.document.mime_type;
+      fileName = message.document.filename || `whatsapp-${message.id}.pdf`;
+      console.log(`📄 PDF document detected: ${fileName}`);
+    } else {
+      console.log(
+        `⚠️ Document type not supported: ${message.document.mime_type}, ignoring`
+      );
+      return;
+    }
+  } else {
+    console.log(
+      `⚠️ Message type not supported: ${message.type}, ignoring`
+    );
+    return;
+  }
+
+  if (!mediaId || !mimeType) {
+    console.log("⚠️ No valid media found in message");
     return;
   }
 
@@ -145,22 +181,24 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
 
   console.log(`✅ Found user: ${user.email} (${user.id})`);
 
-  // Download image from WhatsApp
-  const downloadResult = await downloadWhatsAppMedia(message.image.id);
+  // Download media from WhatsApp
+  console.log(`📥 Downloading media ID: ${mediaId}`);
+  const downloadResult = await downloadWhatsAppMedia(mediaId);
   if (!downloadResult.success || !downloadResult.buffer) {
-    console.error("❌ Failed to download image from WhatsApp");
+    console.error("❌ Failed to download media from WhatsApp");
     return;
   }
 
-  console.log(`📥 Downloaded image: ${downloadResult.buffer.length} bytes`);
+  console.log(
+    `📥 Downloaded ${mimeType === "application/pdf" ? "PDF" : "image"}: ${downloadResult.buffer.length} bytes`
+  );
 
   // Process receipt using shared service (upload + Gemini)
-  const fileName = `whatsapp-${message.id}.jpg`;
   const processingResult = await processReceipt(
     downloadResult.buffer,
     user.id,
     fileName,
-    message.image.mime_type
+    mimeType
   );
 
   if (!processingResult.success) {

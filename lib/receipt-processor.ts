@@ -106,7 +106,8 @@ export async function uploadReceiptToStorage(
 }
 
 /**
- * Process receipt image with Gemini AI
+ * Process receipt image or PDF with Gemini AI
+ * Supports: image/jpeg, image/png, image/webp, application/pdf
  * MUST match scan-receipt/route.ts prompt exactly
  */
 export async function processReceiptWithGemini(
@@ -132,11 +133,14 @@ export async function processReceiptWithGemini(
     // EXACT prompt from scan-receipt/route.ts
     const prompt = `You are a strict Israeli VAT receipt scanner for an Authorized Dealer (עוסק מורשה).
 
+You will receive either an image (JPEG, PNG, WebP) or a PDF document containing a receipt. Extract the data accurately.
+
 CRITICAL ACCURACY RULES — READ BEFORE ANALYZING:
 - NEVER guess, invent, or hallucinate any data. Do not invent numbers that are not present in the document.
 - If the text is blurry, faded, or partially visible for merchant name or date, return null for those fields.
 - Do not infer the merchant name from logos, colors, or context — only from clearly legible text.
 - For amounts: look for keywords like "סה"כ לתשלום", "סה"כ", "Total", or "מע"מ". Confidently extract the numeric values associated with them. Extract the numeric amount but also DETECT the currency symbol. Do your best to find the final total and VAT — only return null for amounts if no numeric value can be found at all.
+- For PDFs: Extract text and numbers from all pages. Focus on the first page for receipt data.
 
 Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
 
