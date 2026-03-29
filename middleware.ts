@@ -7,7 +7,7 @@ const SECRET_KEY = new TextEncoder().encode(
 );
 
 // Public routes that don't require authentication
-const publicRoutes = ["/login", "/register"];
+const publicRoutes = ["/login", "/register", "/forgot-password", "/reset-password"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

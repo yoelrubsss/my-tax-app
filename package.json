@@ -23,6 +23,7 @@
     "backfill-vat": "tsx scripts/backfill-vat.ts",
     "list-my-transactions": "tsx scripts/list-my-transactions.ts",
     "clear-transactions": "tsx scripts/clear-transactions.ts",
+    "link-whatsapp": "tsx scripts/link-whatsapp.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "migrate-draft-status": "tsx lib/db-migration-draft-status.ts"

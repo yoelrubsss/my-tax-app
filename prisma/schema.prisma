@@ -16,6 +16,7 @@ model User {
   name          String?
   password      String
   dealerNumber  String?   // Israeli tax ID (9 digits)
+  whatsappPhone String?   // WhatsApp phone number (format: 972XXXXXXXXX)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -23,6 +24,8 @@ model User {
   transactions  Transaction[]
   chatMessages  ChatMessage[]
   passwordResets PasswordReset[]
+
+  @@index([whatsappPhone], name: "idx_whatsapp_phone")
 }
 
 model UserProfile {
