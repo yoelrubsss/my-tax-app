@@ -274,38 +274,55 @@ async function createDraftTransaction(
     console.log("  - scanResult:", JSON.stringify(scanResult, null, 2));
     console.log("========================================\n");
 
-    // Calculate amounts based on scan result
-    const totalAmount = scanResult?.totalAmount || 0;
-    const vatAmount =
-      scanResult?.vatAmount || (totalAmount > 0 ? totalAmount * 0.18 / 1.18 : 0);
-    const netAmount = totalAmount - vatAmount;
+    // Match manual flow logic exactly (from transactions/route.ts line 136-140)
+    const finalAmount = scanResult?.totalAmount || 0;
+    const finalMerchant = scanResult?.merchant || 'Draft Transaction';
+    const finalDescription = scanResult?.merchant || ''; // Empty string, or use merchant as description
+    const finalCategory = scanResult?.category || 'other';
+    const finalDate = scanResult?.date ? new Date(scanResult.date) : new Date();
 
-    console.log("💾 [CREATE_DRAFT] Calculated amounts:");
-    console.log("  - totalAmount:", totalAmount);
+    // Calculate VAT amounts (match manual flow line 152-157)
+    const vatRate = 0.18;
+    const vatAmount = scanResult?.vatAmount
+      ? scanResult.vatAmount
+      : finalAmount > 0 ? finalAmount * vatRate / (1 + vatRate) : 0;
+    const netAmount = finalAmount > 0 ? finalAmount - vatAmount : 0;
+
+    // Calculate RECOGNIZED VAT based on category rules (match manual flow line 159-167)
+    // For now, default to 0 since category might not be confirmed yet
+    const recognizedVatAmount = 0;
+
+    console.log("💾 [CREATE_DRAFT] Processed values:");
+    console.log("  - merchant:", finalMerchant);
+    console.log("  - description:", finalDescription);
+    console.log("  - amount:", finalAmount);
     console.log("  - vatAmount:", vatAmount);
     console.log("  - netAmount:", netAmount);
+    console.log("  - category:", finalCategory);
+    console.log("  - date:", finalDate);
 
+    // Match manual flow transaction structure exactly (line 170-186)
     const transactionData = {
       userId,
-      merchant: scanResult?.merchant || "Draft Transaction",
-      description: "מ-WhatsApp - נדרש מילוי פרטים",
-      date: scanResult?.date ? new Date(scanResult.date) : new Date(),
-      amount: totalAmount,
-      vatRate: 0.18,
-      vatAmount,
-      netAmount,
-      recognizedVatAmount: 0, // Will be calculated when category is confirmed
-      category: scanResult?.category || "other",
       type: "EXPENSE" as const,
-      status: "DRAFT", // Mark as draft to appear in DraftsInbox
-      receiptUrl, // Supabase Storage URL
+      date: finalDate,
+      merchant: finalMerchant,
+      description: finalDescription, // Empty string or merchant name
+      amount: finalAmount,
+      vatRate: vatRate,
+      vatAmount: parseFloat(vatAmount.toFixed(2)),
+      netAmount: parseFloat(netAmount.toFixed(2)),
+      recognizedVatAmount: parseFloat(recognizedVatAmount.toFixed(2)),
+      category: finalCategory,
+      receiptUrl: receiptUrl,
+      status: "DRAFT", // Explicitly set to DRAFT
       isRecognized: true,
     };
 
     console.log("\n💾 [CREATE_DRAFT] Transaction data to be created:");
     console.log(JSON.stringify(transactionData, null, 2));
 
-    // Create draft transaction (same as manual upload flow)
+    // Create draft transaction (same structure as manual upload flow)
     const transaction = await prisma.transaction.create({
       data: transactionData,
     });
@@ -314,6 +331,7 @@ async function createDraftTransaction(
     console.log("✅ [CREATE_DRAFT] Transaction created successfully!");
     console.log("✅ [CREATE_DRAFT] Transaction ID:", transaction.id);
     console.log("✅ [CREATE_DRAFT] Merchant:", transaction.merchant);
+    console.log("✅ [CREATE_DRAFT] Description:", transaction.description);
     console.log("✅ [CREATE_DRAFT] Amount:", transaction.amount);
     console.log("✅ [CREATE_DRAFT] VAT Amount:", transaction.vatAmount);
     console.log("✅ [CREATE_DRAFT] Date:", transaction.date);
