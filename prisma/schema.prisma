@@ -22,6 +22,7 @@ model User {
   profile       UserProfile?
   transactions  Transaction[]
   chatMessages  ChatMessage[]
+  passwordResets PasswordReset[]
 }
 
 model UserProfile {
@@ -83,4 +84,16 @@ model ChatMessage {
   role      String   // 'user' or 'assistant'
   content   String
   createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token], name: "idx_reset_token")
+  @@index([userId, expiresAt], name: "idx_user_expiry")
 }

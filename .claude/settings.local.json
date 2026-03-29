@@ -8,7 +8,8 @@
       "Bash(dir:*)",
       "Bash(findstr:*)",
       "Bash(npx tsx:*)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx prisma db push:*)"
     ]
   }
 }
