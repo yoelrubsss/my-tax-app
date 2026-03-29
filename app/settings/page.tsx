@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { User, Building2, Home, Users, Car, Save, ArrowRight } from "lucide-react";
+import { User, Building2, Home, Users, Car, Save, ArrowRight, Phone } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface SettingsForm {
@@ -12,6 +12,7 @@ interface SettingsForm {
   hasChildren: boolean;
   childrenCount: number;
   hasVehicle: boolean;
+  whatsappPhone: string;
 }
 
 export default function SettingsPage() {
@@ -26,6 +27,7 @@ export default function SettingsPage() {
     hasChildren: false,
     childrenCount: 0,
     hasVehicle: false,
+    whatsappPhone: "",
   });
 
   useEffect(() => {
@@ -50,6 +52,7 @@ export default function SettingsPage() {
           hasChildren: !!(data.has_children ?? data.hasChildren ?? false),
           childrenCount: data.children_count ?? data.childrenCount ?? 0,
           hasVehicle: !!(data.has_vehicle ?? data.hasVehicle ?? false),
+          whatsappPhone: data.whatsapp_phone || data.whatsappPhone || "",
         });
 
         console.log("✅ Settings form populated:", {
@@ -85,6 +88,7 @@ export default function SettingsPage() {
           has_children: form.hasChildren,
           children_count: form.hasChildren ? form.childrenCount : 0,
           has_vehicle: form.hasVehicle,
+          whatsapp_phone: form.whatsappPhone || null,
         }),
       });
 
@@ -285,6 +289,50 @@ export default function SettingsPage() {
                 />
               </button>
             </div>
+          </div>
+
+          {/* WhatsApp Integration */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <Phone className="w-5 h-5 text-green-600 mt-1" />
+              <div className="flex-1">
+                <label className="text-sm font-medium text-gray-700 block mb-1">
+                  מספר טלפון לחיבור וואטסאפ
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  הזן את המספר שממנו תשלח קבלות (לדוגמה: 052-1234567)
+                </p>
+                <input
+                  type="tel"
+                  value={form.whatsappPhone}
+                  onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })}
+                  placeholder="052-1234567"
+                  dir="ltr"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 text-left"
+                />
+              </div>
+            </div>
+
+            {/* Instructions - Show when phone is saved */}
+            {form.whatsappPhone && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-green-900 mb-2">
+                    📲 כיצד לשלוח קבלות דרך וואטסאפ?
+                  </p>
+                  <ol className="text-sm text-green-800 space-y-2 list-decimal list-inside">
+                    <li>שמור את המספר הזה בנייד שלך: <strong className="font-mono">+972-XX-XXX-XXXX</strong> (מספר הבוט)</li>
+                    <li>שלח הודעת WhatsApp למספר הבוט עם תמונה של הקבלה</li>
+                    <li>הקבלה תעובד אוטומטית ותופיע בתיבת הטיוטות תוך שניות!</li>
+                  </ol>
+                  <div className="mt-3 pt-3 border-t border-green-200">
+                    <p className="text-xs text-green-700">
+                      💡 <strong>חשוב:</strong> רק הודעות מהמספר {form.whatsappPhone} יעובדו אוטומטית
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Save Button */}

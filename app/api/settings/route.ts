@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
+import { formatIsraeliPhoneForDisplay } from "@/lib/phone-utils";
 
 // GET: Fetch user settings
 export async function GET(request: NextRequest) {
@@ -15,9 +16,23 @@ export async function GET(request: NextRequest) {
       where: { userId: userIdStr },
     });
 
+    // Fetch whatsappPhone from User table
+    const user = await prisma.user.findUnique({
+      where: { id: userIdStr },
+      select: { whatsappPhone: true },
+    });
+
+    // Format phone for display (972524589771 → 052-458-9771)
+    const formattedPhone = user?.whatsappPhone
+      ? formatIsraeliPhoneForDisplay(user.whatsappPhone)
+      : null;
+
     return NextResponse.json({
       success: true,
-      data: profile,
+      data: {
+        ...profile,
+        whatsapp_phone: formattedPhone, // Add formatted phone to response
+      },
     });
   } catch (error: any) {
     console.error("Error fetching settings:", error);
@@ -53,6 +68,7 @@ export async function PUT(request: NextRequest) {
       has_children,
       children_count,
       has_vehicle,
+      whatsapp_phone,
     } = body;
 
     // Validate business_type
@@ -61,6 +77,28 @@ export async function PUT(request: NextRequest) {
         { success: false, error: "Invalid business type" },
         { status: 400 }
       );
+    }
+
+    // Normalize and validate WhatsApp phone if provided
+    let normalizedPhone: string | null = null;
+    if (whatsapp_phone !== undefined) {
+      if (whatsapp_phone === "" || whatsapp_phone === null) {
+        // Allow clearing the phone number
+        normalizedPhone = null;
+      } else {
+        // Normalize the phone number
+        const { normalizeIsraeliPhone } = await import("@/lib/phone-utils");
+        normalizedPhone = normalizeIsraeliPhone(whatsapp_phone);
+
+        if (!normalizedPhone) {
+          return NextResponse.json(
+            { success: false, error: "Invalid phone number format. Please use Israeli format (e.g., 052-1234567)" },
+            { status: 400 }
+          );
+        }
+
+        console.log(`📱 [SETTINGS] Phone normalized: "${whatsapp_phone}" → "${normalizedPhone}"`);
+      }
     }
 
     // Use upsert to create or update the profile
@@ -85,6 +123,25 @@ export async function PUT(request: NextRequest) {
       },
     });
 
+    // Update whatsappPhone in User table if provided
+    if (whatsapp_phone !== undefined) {
+      await prisma.user.update({
+        where: { id: userIdStr },
+        data: { whatsappPhone: normalizedPhone },
+      });
+      console.log(`✅ [SETTINGS] WhatsApp phone updated for user ${userIdStr}: ${normalizedPhone}`);
+    }
+
+    // Fetch updated phone for response
+    const user = await prisma.user.findUnique({
+      where: { id: userIdStr },
+      select: { whatsappPhone: true },
+    });
+
+    const formattedPhone = user?.whatsappPhone
+      ? formatIsraeliPhoneForDisplay(user.whatsappPhone)
+      : null;
+
     // Convert back to snake_case for frontend compatibility
     const responseData = {
       id: updatedProfile.id,
@@ -95,6 +152,7 @@ export async function PUT(request: NextRequest) {
       has_children: updatedProfile.hasChildren,
       children_count: updatedProfile.childrenCount,
       has_vehicle: updatedProfile.hasVehicle,
+      whatsapp_phone: formattedPhone, // Include formatted phone in response
     };
 
     return NextResponse.json({

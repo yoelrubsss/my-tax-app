@@ -9,7 +9,9 @@
       "Bash(findstr:*)",
       "Bash(npx tsx:*)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(npx prisma db push:*)"
+      "Bash(npx prisma db push:*)",
+      "Bash(npx prisma:*)",
+      "Bash(git add:*)"
     ]
   }
 }
