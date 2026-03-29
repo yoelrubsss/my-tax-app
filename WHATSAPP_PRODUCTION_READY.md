@@ -121,8 +121,8 @@ if (!user) {
 
 ### Step 2: Send Receipts
 
-1. User opens WhatsApp on their phone
-2. Sends message to bot number: **+972-XX-XXX-XXXX** (replace with actual bot number)
+1. User opens WhatsApp on their phone (or clicks link from Settings page)
+2. Sends message to bot number: **+1 (555) 142-6760** (https://wa.me/15551426760)
 3. Attaches receipt image (as photo, not document)
 4. Sends message
 

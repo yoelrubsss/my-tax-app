@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { User, Building2, Home, Users, Car, Save, ArrowRight, Phone } from "lucide-react";
+import { User, Building2, Home, Users, Car, Save, ArrowRight, Phone, QrCode, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 
 interface SettingsForm {
   businessName: string;
@@ -317,18 +318,64 @@ export default function SettingsPage() {
             {form.whatsappPhone && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <p className="text-sm font-medium text-green-900 mb-2">
-                    📲 כיצד לשלוח קבלות דרך וואטסאפ?
+                  <p className="text-sm font-medium text-green-900 mb-3 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4" />
+                    כיצד לשלוח קבלות דרך וואטסאפ?
                   </p>
-                  <ol className="text-sm text-green-800 space-y-2 list-decimal list-inside">
-                    <li>שמור את המספר הזה בנייד שלך: <strong className="font-mono">+972-XX-XXX-XXXX</strong> (מספר הבוט)</li>
-                    <li>שלח הודעת WhatsApp למספר הבוט עם תמונה של הקבלה</li>
-                    <li>הקבלה תעובד אוטומטית ותופיע בתיבת הטיוטות תוך שניות!</li>
-                  </ol>
-                  <div className="mt-3 pt-3 border-t border-green-200">
-                    <p className="text-xs text-green-700">
-                      💡 <strong>חשוב:</strong> רק הודעות מהמספר {form.whatsappPhone} יעובדו אוטומטית
-                    </p>
+
+                  <div className="grid md:grid-cols-[1fr_auto] gap-4">
+                    {/* Instructions */}
+                    <div className="space-y-3">
+                      <ol className="text-sm text-green-800 space-y-2 list-decimal list-inside">
+                        <li>
+                          לחץ על המספר או סרוק את הקוד:{" "}
+                          <a
+                            href="https://wa.me/15551426760"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-bold text-green-700 hover:text-green-900 underline underline-offset-2 inline-flex items-center gap-1"
+                          >
+                            <Phone className="w-3 h-3" />
+                            +1 (555) 142-6760
+                          </a>
+                        </li>
+                        <li>שלח הודעת WhatsApp עם תמונה של הקבלה</li>
+                        <li>הקבלה תעובד אוטומטית ותופיע בתיבת הטיוטות תוך שניות!</li>
+                      </ol>
+
+                      {/* Mobile: Quick Connect Button */}
+                      <a
+                        href="https://wa.me/15551426760"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="md:hidden inline-flex items-center justify-center gap-2 w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg transition-colors shadow-md"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                        פתח WhatsApp
+                      </a>
+
+                      <div className="mt-3 pt-3 border-t border-green-200">
+                        <p className="text-xs text-green-700">
+                          💡 <strong>חשוב:</strong> רק הודעות מהמספר {form.whatsappPhone} יעובדו אוטומטית
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* QR Code - Desktop Only */}
+                    <div className="hidden md:flex flex-col items-center justify-center bg-white rounded-lg p-4 border border-green-300">
+                      <div className="mb-2">
+                        <QRCodeSVG
+                          value="https://wa.me/15551426760"
+                          size={120}
+                          level="M"
+                          includeMargin={true}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-green-700">
+                        <QrCode className="w-3 h-3" />
+                        <span>סרוק עם המצלמה</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
