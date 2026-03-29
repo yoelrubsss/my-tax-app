@@ -168,19 +168,25 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
     return;
   }
 
-  console.log("✅ Receipt processed:", {
-    url: processingResult.receiptUrl,
-    scan: processingResult.scanResult,
-  });
+  console.log("\n========================================");
+  console.log("✅ [WEBHOOK] Receipt processed successfully!");
+  console.log("✅ [WEBHOOK] Receipt URL:", processingResult.receiptUrl);
+  console.log("✅ [WEBHOOK] Scan result:", JSON.stringify(processingResult.scanResult, null, 2));
+  console.log("========================================\n");
 
   // Create draft transaction with processed data
-  await createDraftTransaction(
+  console.log("💾 [WEBHOOK] Creating draft transaction...");
+  const transaction = await createDraftTransaction(
     user.id,
     processingResult.receiptUrl,
     processingResult.scanResult
   );
 
-  console.log(`✅ Draft transaction created for user ${user.email}`);
+  console.log(`✅ [WEBHOOK] Draft transaction created for user ${user.email}`);
+  console.log(`✅ [WEBHOOK] Transaction ID: ${transaction.id}`);
+  console.log(`✅ [WEBHOOK] Merchant: ${transaction.merchant}`);
+  console.log(`✅ [WEBHOOK] Amount: ${transaction.amount}`);
+  console.log(`✅ [WEBHOOK] Date: ${transaction.date}`);
 }
 
 async function downloadWhatsAppMedia(
@@ -260,36 +266,71 @@ async function createDraftTransaction(
   } | null
 ) {
   try {
+    console.log("\n========================================");
+    console.log("💾 [CREATE_DRAFT] Starting transaction creation");
+    console.log("💾 [CREATE_DRAFT] Input parameters:");
+    console.log("  - userId:", userId);
+    console.log("  - receiptUrl:", receiptUrl);
+    console.log("  - scanResult:", JSON.stringify(scanResult, null, 2));
+    console.log("========================================\n");
+
     // Calculate amounts based on scan result
     const totalAmount = scanResult?.totalAmount || 0;
     const vatAmount =
       scanResult?.vatAmount || (totalAmount > 0 ? totalAmount * 0.18 / 1.18 : 0);
     const netAmount = totalAmount - vatAmount;
 
+    console.log("💾 [CREATE_DRAFT] Calculated amounts:");
+    console.log("  - totalAmount:", totalAmount);
+    console.log("  - vatAmount:", vatAmount);
+    console.log("  - netAmount:", netAmount);
+
+    const transactionData = {
+      userId,
+      merchant: scanResult?.merchant || "Draft Transaction",
+      description: "מ-WhatsApp - נדרש מילוי פרטים",
+      date: scanResult?.date ? new Date(scanResult.date) : new Date(),
+      amount: totalAmount,
+      vatRate: 0.18,
+      vatAmount,
+      netAmount,
+      recognizedVatAmount: 0, // Will be calculated when category is confirmed
+      category: scanResult?.category || "other",
+      type: "EXPENSE" as const,
+      status: "DRAFT", // Mark as draft to appear in DraftsInbox
+      receiptUrl, // Supabase Storage URL
+      isRecognized: true,
+    };
+
+    console.log("\n💾 [CREATE_DRAFT] Transaction data to be created:");
+    console.log(JSON.stringify(transactionData, null, 2));
+
     // Create draft transaction (same as manual upload flow)
     const transaction = await prisma.transaction.create({
-      data: {
-        userId,
-        merchant: scanResult?.merchant || "Draft Transaction",
-        description: "מ-WhatsApp - נדרש מילוי פרטים",
-        date: scanResult?.date ? new Date(scanResult.date) : new Date(),
-        amount: totalAmount,
-        vatRate: 0.18,
-        vatAmount,
-        netAmount,
-        recognizedVatAmount: 0, // Will be calculated when category is confirmed
-        category: scanResult?.category || "other",
-        type: "EXPENSE",
-        status: "DRAFT", // Mark as draft to appear in DraftsInbox
-        receiptUrl, // Supabase Storage URL
-        isRecognized: true,
-      },
+      data: transactionData,
     });
 
-    console.log(`✅ Draft transaction created: ${transaction.id}`);
+    console.log("\n========================================");
+    console.log("✅ [CREATE_DRAFT] Transaction created successfully!");
+    console.log("✅ [CREATE_DRAFT] Transaction ID:", transaction.id);
+    console.log("✅ [CREATE_DRAFT] Merchant:", transaction.merchant);
+    console.log("✅ [CREATE_DRAFT] Amount:", transaction.amount);
+    console.log("✅ [CREATE_DRAFT] VAT Amount:", transaction.vatAmount);
+    console.log("✅ [CREATE_DRAFT] Date:", transaction.date);
+    console.log("✅ [CREATE_DRAFT] Category:", transaction.category);
+    console.log("✅ [CREATE_DRAFT] Status:", transaction.status);
+    console.log("✅ [CREATE_DRAFT] Receipt URL:", transaction.receiptUrl);
+    console.log("========================================\n");
+
     return transaction;
   } catch (error) {
-    console.error("❌ Error creating draft transaction:", error);
+    console.error("\n========================================");
+    console.error("❌ [CREATE_DRAFT] Error creating draft transaction:", error);
+    if (error instanceof Error) {
+      console.error("❌ [CREATE_DRAFT] Error message:", error.message);
+      console.error("❌ [CREATE_DRAFT] Error stack:", error.stack);
+    }
+    console.error("========================================\n");
     throw error;
   }
 }
