@@ -4,34 +4,45 @@ import { prisma } from "@/lib/prisma";
 import { formatIsraeliPhoneForDisplay } from "@/lib/phone-utils";
 
 // GET: Fetch user settings
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const userId = await requireAuth();
 
     // CRITICAL FIX: Convert userId to String for Prisma
     const userIdStr = String(userId);
 
-    // Fetch user profile using Prisma
-    const profile = await prisma.userProfile.findUnique({
-      where: { userId: userIdStr },
-    });
-
-    // Fetch whatsappPhone from User table
+    // Single round-trip: profile + WhatsApp fields (was two sequential queries)
     const user = await prisma.user.findUnique({
       where: { id: userIdStr },
-      select: { whatsappPhone: true },
+      select: {
+        whatsappPhone: true,
+        whatsappPhone2: true,
+        profile: true,
+      },
     });
 
-    // Format phone for display (972524589771 → 052-458-9771)
+    const profile = user?.profile ?? null;
+
     const formattedPhone = user?.whatsappPhone
       ? formatIsraeliPhoneForDisplay(user.whatsappPhone)
       : null;
+    const formattedPhone2 = user?.whatsappPhone2
+      ? formatIsraeliPhoneForDisplay(user.whatsappPhone2)
+      : null;
 
+    // Plain JSON only (no Prisma object spread) — avoids surprise fields / serialization issues on the client.
     return NextResponse.json({
       success: true,
       data: {
-        ...profile,
-        whatsapp_phone: formattedPhone, // Add formatted phone to response
+        business_name: profile?.businessName ?? null,
+        business_type: profile?.businessType ?? null,
+        is_home_office: profile?.isHomeOffice ?? false,
+        has_children: profile?.hasChildren ?? false,
+        children_count: profile?.childrenCount ?? 0,
+        has_vehicle: profile?.hasVehicle ?? false,
+        standard_work_day: profile?.standardWorkDay ?? 9,
+        whatsapp_phone: formattedPhone,
+        whatsapp_phone_2: formattedPhone2,
       },
     });
   } catch (error: any) {
@@ -69,6 +80,7 @@ export async function PUT(request: NextRequest) {
       children_count,
       has_vehicle,
       whatsapp_phone,
+      whatsapp_phone_2,
     } = body;
 
     // Validate business_type
@@ -79,14 +91,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Normalize and validate WhatsApp phone if provided
-    let normalizedPhone: string | null = null;
+    // Normalize and validate WhatsApp phones if provided
+    let normalizedPhone: string | null | undefined = undefined;
     if (whatsapp_phone !== undefined) {
       if (whatsapp_phone === "" || whatsapp_phone === null) {
-        // Allow clearing the phone number
         normalizedPhone = null;
       } else {
-        // Normalize the phone number
         const { normalizeIsraeliPhone } = await import("@/lib/phone-utils");
         normalizedPhone = normalizeIsraeliPhone(whatsapp_phone);
 
@@ -98,6 +108,25 @@ export async function PUT(request: NextRequest) {
         }
 
         console.log(`📱 [SETTINGS] Phone normalized: "${whatsapp_phone}" → "${normalizedPhone}"`);
+      }
+    }
+
+    let normalizedPhone2: string | null | undefined = undefined;
+    if (whatsapp_phone_2 !== undefined) {
+      if (whatsapp_phone_2 === "" || whatsapp_phone_2 === null) {
+        normalizedPhone2 = null;
+      } else {
+        const { normalizeIsraeliPhone } = await import("@/lib/phone-utils");
+        normalizedPhone2 = normalizeIsraeliPhone(whatsapp_phone_2);
+
+        if (!normalizedPhone2) {
+          return NextResponse.json(
+            { success: false, error: "Invalid secondary phone format. Please use Israeli format (e.g., 052-1234567)" },
+            { status: 400 }
+          );
+        }
+
+        console.log(`📱 [SETTINGS] Phone 2 normalized: "${whatsapp_phone_2}" → "${normalizedPhone2}"`);
       }
     }
 
@@ -123,23 +152,32 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    // Update whatsappPhone in User table if provided
-    if (whatsapp_phone !== undefined) {
+    // Update WhatsApp numbers in User table
+    if (whatsapp_phone !== undefined || whatsapp_phone_2 !== undefined) {
+      const data: { whatsappPhone?: string | null; whatsappPhone2?: string | null } = {};
+      if (whatsapp_phone !== undefined) {
+        data.whatsappPhone = normalizedPhone as string | null;
+      }
+      if (whatsapp_phone_2 !== undefined) {
+        data.whatsappPhone2 = normalizedPhone2 as string | null;
+      }
       await prisma.user.update({
         where: { id: userIdStr },
-        data: { whatsappPhone: normalizedPhone },
+        data,
       });
-      console.log(`✅ [SETTINGS] WhatsApp phone updated for user ${userIdStr}: ${normalizedPhone}`);
+      console.log(`✅ [SETTINGS] WhatsApp phone(s) updated for user ${userIdStr}`);
     }
 
-    // Fetch updated phone for response
     const user = await prisma.user.findUnique({
       where: { id: userIdStr },
-      select: { whatsappPhone: true },
+      select: { whatsappPhone: true, whatsappPhone2: true },
     });
 
     const formattedPhone = user?.whatsappPhone
       ? formatIsraeliPhoneForDisplay(user.whatsappPhone)
+      : null;
+    const formattedPhone2 = user?.whatsappPhone2
+      ? formatIsraeliPhoneForDisplay(user.whatsappPhone2)
       : null;
 
     // Convert back to snake_case for frontend compatibility
@@ -152,7 +190,8 @@ export async function PUT(request: NextRequest) {
       has_children: updatedProfile.hasChildren,
       children_count: updatedProfile.childrenCount,
       has_vehicle: updatedProfile.hasVehicle,
-      whatsapp_phone: formattedPhone, // Include formatted phone in response
+      whatsapp_phone: formattedPhone,
+      whatsapp_phone_2: formattedPhone2,
     };
 
     return NextResponse.json({

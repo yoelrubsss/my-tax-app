@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { prisma } from "@/lib/prisma";
+import { isAdminUser } from "@/lib/admin";
 
 // Secret key for JWT (must match login route)
 const SECRET_KEY = new TextEncoder().encode(
@@ -53,6 +54,7 @@ export async function GET(request: NextRequest) {
         name: user.name,
         dealer_number: user.dealerNumber,
         business_name: user.profile?.businessName,
+        is_admin: isAdminUser(user.email, user.id),
       },
     });
 

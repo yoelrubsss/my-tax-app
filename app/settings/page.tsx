@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { User, Building2, Home, Users, Car, Save, ArrowRight, Phone, QrCode, MessageCircle } from "lucide-react";
+import { User as UserIcon, Building2, Home, Users, Car, Save, ArrowRight, Phone, QrCode, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -14,10 +14,65 @@ interface SettingsForm {
   childrenCount: number;
   hasVehicle: boolean;
   whatsappPhone: string;
+  whatsappPhone2: string;
+}
+
+const BUSINESS_TYPES = ["OSEK_PATUR", "OSEK_MURSHE", "LTD"] as const;
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Safe string for display/alerts — never passes through raw Event objects. */
+function formatUnknownError(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (typeof err === "number" || typeof err === "boolean") return String(err);
+  // Avoid [object Event] / [object Object] in UI
+  if (typeof Event !== "undefined" && err instanceof Event) {
+    return "Something went wrong (invalid event).";
+  }
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+function parseSettingsData(raw: unknown): Partial<SettingsForm> | null {
+  if (!isRecord(raw)) return null;
+  const d = raw;
+  const bt = d.business_type ?? d.businessType;
+  const businessType =
+    typeof bt === "string" && (BUSINESS_TYPES as readonly string[]).includes(bt)
+      ? (bt as SettingsForm["businessType"])
+      : "OSEK_MURSHE";
+
+  const childrenRaw = d.children_count ?? d.childrenCount;
+  let childrenCount = 0;
+  if (typeof childrenRaw === "number" && Number.isFinite(childrenRaw)) {
+    childrenCount = Math.max(0, Math.min(20, Math.floor(childrenRaw)));
+  } else if (typeof childrenRaw === "string" && childrenRaw.trim() !== "") {
+    const n = parseInt(childrenRaw, 10);
+    if (!Number.isNaN(n)) childrenCount = Math.max(0, Math.min(20, n));
+  }
+
+  const str = (v: unknown) => (typeof v === "string" ? v : v != null ? String(v) : "");
+
+  return {
+    businessName: str(d.business_name ?? d.businessName).trim(),
+    businessType,
+    isHomeOffice: Boolean(d.is_home_office ?? d.isHomeOffice),
+    hasChildren: Boolean(d.has_children ?? d.hasChildren),
+    childrenCount,
+    hasVehicle: Boolean(d.has_vehicle ?? d.hasVehicle),
+    whatsappPhone: str(d.whatsapp_phone ?? d.whatsappPhone).trim(),
+    whatsappPhone2: str(d.whatsapp_phone_2 ?? d.whatsappPhone2).trim(),
+  };
 }
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { refreshUser } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -29,6 +84,7 @@ export default function SettingsPage() {
     childrenCount: 0,
     hasVehicle: false,
     whatsappPhone: "",
+    whatsappPhone2: "",
   });
 
   useEffect(() => {
@@ -38,44 +94,51 @@ export default function SettingsPage() {
   const fetchSettings = async () => {
     try {
       const response = await fetch("/api/settings");
-      const result = await response.json();
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        console.error("❌ Settings API returned non-JSON");
+        return;
+      }
 
       console.log("📥 Settings API response:", result);
 
-      if (result.success && result.data) {
-        const data = result.data;
-
-        // CRITICAL FIX: Handle both snake_case (from API response mapper) and camelCase (from Prisma)
-        setForm({
-          businessName: data.business_name || data.businessName || "",
-          businessType: data.business_type || data.businessType || "OSEK_MURSHE",
-          isHomeOffice: !!(data.is_home_office ?? data.isHomeOffice ?? false),
-          hasChildren: !!(data.has_children ?? data.hasChildren ?? false),
-          childrenCount: data.children_count ?? data.childrenCount ?? 0,
-          hasVehicle: !!(data.has_vehicle ?? data.hasVehicle ?? false),
-          whatsappPhone: data.whatsapp_phone || data.whatsappPhone || "",
-        });
-
-        console.log("✅ Settings form populated:", {
-          businessName: data.business_name || data.businessName,
-          businessType: data.business_type || data.businessType,
-          isHomeOffice: data.is_home_office ?? data.isHomeOffice,
-          hasChildren: data.has_children ?? data.hasChildren,
-          childrenCount: data.children_count ?? data.childrenCount,
-          hasVehicle: data.has_vehicle ?? data.hasVehicle,
-        });
-      } else {
+      if (!isRecord(result) || !result.success) {
         console.warn("⚠️ Settings API returned no data or failed:", result);
+        return;
       }
+
+      const parsed = parseSettingsData(result.data);
+      if (!parsed) {
+        console.warn("⚠️ Settings API data shape unexpected:", result.data);
+        return;
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        ...parsed,
+        businessName: parsed.businessName ?? "",
+        businessType: parsed.businessType ?? "OSEK_MURSHE",
+        isHomeOffice: parsed.isHomeOffice ?? false,
+        hasChildren: parsed.hasChildren ?? false,
+        childrenCount: parsed.childrenCount ?? 0,
+        hasVehicle: parsed.hasVehicle ?? false,
+        whatsappPhone: parsed.whatsappPhone ?? "",
+        whatsappPhone2: parsed.whatsappPhone2 ?? "",
+      }));
+
+      console.log("✅ Settings form populated");
     } catch (error) {
-      console.error("❌ Error fetching settings:", error);
+      console.error("❌ Error fetching settings:", formatUnknownError(error));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault?.();
+    e.stopPropagation?.();
     setSaving(true);
 
     try {
@@ -90,19 +153,38 @@ export default function SettingsPage() {
           children_count: form.hasChildren ? form.childrenCount : 0,
           has_vehicle: form.hasVehicle,
           whatsapp_phone: form.whatsappPhone || null,
+          whatsapp_phone_2: form.whatsappPhone2 || null,
         }),
       });
 
-      const result = await response.json();
+      let result: unknown;
+      try {
+        result = await response.json();
+      } catch {
+        alert("❌ שגיאה בשמירת ההגדרות: תגובה לא תקינה מהשרת");
+        return;
+      }
 
-      if (result.success) {
-        alert("✅ ההגדרות נשמרו בהצלחה!");
+      if (isRecord(result) && result.success) {
+        try {
+          await refreshUser();
+        } catch (refreshErr) {
+          console.error("refreshUser failed:", formatUnknownError(refreshErr));
+        }
+        router.replace("/");
       } else {
-        alert("❌ שגיאה בשמירת ההגדרות: " + result.error);
+        const errMsg = isRecord(result) ? result.error : undefined;
+        const text =
+          typeof errMsg === "string"
+            ? errMsg
+            : errMsg != null
+              ? formatUnknownError(errMsg)
+              : "שמירה נכשלה";
+        alert("❌ שגיאה בשמירת ההגדרות: " + text);
       }
     } catch (error) {
-      console.error("Error saving settings:", error);
-      alert("❌ שגיאה בשמירת ההגדרות");
+      console.error("Error saving settings:", formatUnknownError(error));
+      alert("❌ שגיאה בשמירת ההגדרות: " + formatUnknownError(error));
     } finally {
       setSaving(false);
     }
@@ -133,7 +215,7 @@ export default function SettingsPage() {
 
         <div className="bg-gradient-to-l from-blue-600 to-blue-700 rounded-lg shadow-md p-6 text-white">
           <div className="flex items-center gap-4">
-            <User className="w-10 h-10" />
+            <UserIcon className="w-10 h-10" />
             <div>
               <h1 className="text-2xl md:text-3xl font-bold">הגדרות פרופיל</h1>
               <p className="text-blue-100 text-sm md:text-base mt-1">
@@ -173,7 +255,12 @@ export default function SettingsPage() {
             </label>
             <select
               value={form.businessType}
-              onChange={(e) => setForm({ ...form, businessType: e.target.value as any })}
+              onChange={(e) => {
+                const v = e.target.value;
+                if ((BUSINESS_TYPES as readonly string[]).includes(v)) {
+                  setForm({ ...form, businessType: v as SettingsForm["businessType"] });
+                }
+              }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             >
               <option value="OSEK_PATUR">עוסק פטור (מחזור עד 102,292 ₪)</option>
@@ -201,14 +288,16 @@ export default function SettingsPage() {
               </div>
               <button
                 type="button"
+                role="switch"
+                aria-checked={form.isHomeOffice}
                 onClick={() => setForm({ ...form, isHomeOffice: !form.isHomeOffice })}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                   form.isHomeOffice ? "bg-blue-600" : "bg-gray-300"
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
-                    form.isHomeOffice ? "translate-x-6" : "translate-x-1"
+                  className={`pointer-events-none absolute top-1 size-4 rounded-full bg-white shadow transition-all duration-200 ease-in-out ${
+                    form.isHomeOffice ? "start-[calc(100%-1.25rem)]" : "start-1"
                   }`}
                 />
               </button>
@@ -278,14 +367,16 @@ export default function SettingsPage() {
               </div>
               <button
                 type="button"
+                role="switch"
+                aria-checked={form.hasVehicle}
                 onClick={() => setForm({ ...form, hasVehicle: !form.hasVehicle })}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                   form.hasVehicle ? "bg-blue-600" : "bg-gray-300"
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
-                    form.hasVehicle ? "translate-x-6" : "translate-x-1"
+                  className={`pointer-events-none absolute top-1 size-4 rounded-full bg-white shadow transition-all duration-200 ease-in-out ${
+                    form.hasVehicle ? "start-[calc(100%-1.25rem)]" : "start-1"
                   }`}
                 />
               </button>
@@ -311,11 +402,25 @@ export default function SettingsPage() {
                   dir="ltr"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 text-left"
                 />
+                <label className="text-sm font-medium text-gray-700 block mb-1 mt-4">
+                  מספר נוסף (אופציונלי)
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  אופציונלי: מספר נוסף לקבלות (למשל מכשיר או עובד).
+                </p>
+                <input
+                  type="tel"
+                  value={form.whatsappPhone2}
+                  onChange={(e) => setForm({ ...form, whatsappPhone2: e.target.value })}
+                  placeholder="052-9876543"
+                  dir="ltr"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 text-left"
+                />
               </div>
             </div>
 
             {/* Instructions - Show when phone is saved */}
-            {form.whatsappPhone && (
+            {(form.whatsappPhone || form.whatsappPhone2) && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-sm font-medium text-green-900 mb-3 flex items-center gap-2">
@@ -356,7 +461,17 @@ export default function SettingsPage() {
 
                       <div className="mt-3 pt-3 border-t border-green-200">
                         <p className="text-xs text-green-700">
-                          💡 <strong>חשוב:</strong> רק הודעות מהמספר {form.whatsappPhone} יעובדו אוטומטית
+                          💡 <strong>חשוב:</strong> רק הודעות מהמספרים
+                          {form.whatsappPhone && (
+                            <span className="font-mono font-semibold"> {form.whatsappPhone}</span>
+                          )}
+                          {form.whatsappPhone2 && (
+                            <span className="font-mono font-semibold">
+                              {form.whatsappPhone ? " / " : " "}
+                              {form.whatsappPhone2}
+                            </span>
+                          )}{" "}
+                          יעובדו אוטומטית
                         </p>
                       </div>
                     </div>
@@ -386,9 +501,9 @@ export default function SettingsPage() {
           <button
             type="submit"
             disabled={saving}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all duration-200 flex items-center justify-center gap-3 disabled:cursor-not-allowed"
+            className="w-full min-h-[3.25rem] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-gray-400 disabled:to-gray-500 text-white font-bold py-4 px-6 rounded-lg shadow-lg transition-all duration-200 inline-flex items-center justify-center gap-3 disabled:cursor-not-allowed"
           >
-            <Save className="w-5 h-5" />
+            <Save className="w-5 h-5 shrink-0" />
             {saving ? "שומר..." : "שמור הגדרות"}
           </button>
         </form>

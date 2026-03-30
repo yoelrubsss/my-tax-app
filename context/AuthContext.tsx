@@ -14,6 +14,8 @@ interface User {
   name: string;
   dealer_number: string;
   business_name?: string;
+  /** True when email/ID match ADMIN_EMAIL / ADMIN_USER_IDS (server). */
+  is_admin?: boolean;
 }
 
 interface AuthContextType {

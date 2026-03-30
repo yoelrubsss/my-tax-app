@@ -337,3 +337,58 @@ export function comparePeriods(period1: VATperiod, period2: VATperiod): number {
 
   return 0;
 }
+
+/**
+ * Bi-monthly VAT period from dashboard URL month (YYYY-MM, odd month = period start).
+ */
+export function getVatPeriodFromMonthParam(monthParam: string | null): VATperiod | null {
+  if (!monthParam) return null;
+  const parts = monthParam.split("-");
+  if (parts.length !== 2) return null;
+  const year = parseInt(parts[0], 10);
+  const monthNum = parseInt(parts[1], 10);
+  if (Number.isNaN(year) || Number.isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+    return null;
+  }
+  const periodIndex = Math.ceil(monthNum / 2) as 1 | 2 | 3 | 4 | 5 | 6;
+  return { year, periodIndex };
+}
+
+/**
+ * Bi-monthly VAT window from dashboard URL month (YYYY-MM, odd month = period start).
+ * Matches GET /api/transactions date filters and HomeContent stats.
+ */
+export function getVatPeriodDateBoundsFromMonthParam(
+  monthParam: string | null
+): { startDate: string; endDate: string } | null {
+  if (!monthParam) return null;
+  const parts = monthParam.split("-");
+  if (parts.length !== 2) return null;
+  const yearNum = parseInt(parts[0], 10);
+  const monthNum = parseInt(parts[1], 10);
+  if (Number.isNaN(yearNum) || Number.isNaN(monthNum)) return null;
+
+  const startDate = `${yearNum}-${String(monthNum).padStart(2, "0")}-01`;
+
+  const nextMonth = monthNum + 1;
+  let endYear = yearNum;
+  let endMonthNum = nextMonth;
+  if (nextMonth > 12) {
+    endYear = yearNum + 1;
+    endMonthNum = 1;
+  }
+
+  let lastDay: number;
+  if (endMonthNum === 2) {
+    const isLeapYear =
+      (endYear % 4 === 0 && endYear % 100 !== 0) || endYear % 400 === 0;
+    lastDay = isLeapYear ? 29 : 28;
+  } else if ([4, 6, 9, 11].includes(endMonthNum)) {
+    lastDay = 30;
+  } else {
+    lastDay = 31;
+  }
+
+  const endDate = `${endYear}-${String(endMonthNum).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { startDate, endDate };
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FileText, AlertCircle, Eye, Clock, CheckCircle, Trash2 } from "lucide-react";
 
 interface Transaction {
@@ -20,44 +20,39 @@ interface Transaction {
 interface DraftsInboxProps {
   onReviewDraft: (transaction: Transaction) => void;
   onRefreshNeeded: () => void;
-  refreshTrigger?: number;
+  /** Parent-owned list from one /api/transactions fetch (null = dashboard still loading). */
+  sharedTransactions: Transaction[] | null;
+  onAllDraftsResolved?: () => void;
 }
 
-export default function DraftsInbox({ onReviewDraft, onRefreshNeeded, refreshTrigger }: DraftsInboxProps) {
+export default function DraftsInbox({
+  onReviewDraft,
+  onRefreshNeeded,
+  sharedTransactions,
+  onAllDraftsResolved,
+}: DraftsInboxProps) {
   const [drafts, setDrafts] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const prevDraftCountRef = useRef<number | null>(null);
 
   useEffect(() => {
-    fetchDrafts();
-  }, [refreshTrigger]);
-
-  const fetchDrafts = async () => {
-    try {
+    if (sharedTransactions === null) {
       setLoading(true);
-      console.log("📥 DraftsInbox: Fetching all transactions...");
-
-      // Fetch ALL transactions (Prisma has no status field in DB)
-      const response = await fetch("/api/transactions");
-      const result = await response.json();
-
-      if (result.success && Array.isArray(result.data)) {
-        // Filter for DRAFT status (persisted in DB via status field)
-        const draftTransactions = result.data.filter((t: Transaction) => t.status === 'DRAFT');
-
-        console.log(`✅ DraftsInbox: Found ${draftTransactions.length} drafts out of ${result.data.length} total transactions`);
-
-        setDrafts(draftTransactions);
-      } else {
-        console.warn("⚠️ DraftsInbox: Failed to fetch transactions", result);
-        setDrafts([]);
-      }
-    } catch (error) {
-      console.error("❌ DraftsInbox: Error fetching drafts:", error);
-      setDrafts([]);
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+    setLoading(false);
+    const draftTransactions = sharedTransactions.filter((t: Transaction) => t.status === "DRAFT");
+    setDrafts(draftTransactions);
+  }, [sharedTransactions]);
+
+  useEffect(() => {
+    if (loading) return;
+    const prev = prevDraftCountRef.current;
+    if (prev !== null && prev > 0 && drafts.length === 0) {
+      onAllDraftsResolved?.();
+    }
+    prevDraftCountRef.current = drafts.length;
+  }, [drafts, loading, onAllDraftsResolved]);
 
   const handleDelete = async (id: string | number) => {
     // Confirmation dialog

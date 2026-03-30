@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
+import { isAdminUser } from "@/lib/admin";
 
 // Secret key for JWT (in production, use environment variable)
 const SECRET_KEY = new TextEncoder().encode(
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         dealer_number: user.dealerNumber,
         business_name: user.profile?.businessName,
+        is_admin: isAdminUser(user.email, user.id),
       },
     });
 

@@ -17,6 +17,7 @@ model User {
   password      String
   dealerNumber  String?   // Israeli tax ID (9 digits)
   whatsappPhone String?   // WhatsApp phone number (format: 972XXXXXXXXX)
+  whatsappPhone2 String?  // Optional second linked number for receipts (same format)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -24,8 +25,10 @@ model User {
   transactions  Transaction[]
   chatMessages  ChatMessage[]
   passwordResets PasswordReset[]
+  feedbackLogs  FeedbackLog[]
 
   @@index([whatsappPhone], name: "idx_whatsapp_phone")
+  @@index([whatsappPhone2], name: "idx_whatsapp_phone2")
 }
 
 model UserProfile {
@@ -78,6 +81,9 @@ model Transaction {
   // Index #3: Export queries - fetch all transactions in a date range for a user
   // Used by: /api/export (bi-monthly reports)
   @@index([userId, date], name: "idx_user_date")
+
+  // Index #4: Fast global aggregate for GET ?summary=1 (count + max createdAt)
+  @@index([userId, createdAt], name: "idx_user_created_at")
 }
 
 model ChatMessage {
@@ -99,4 +105,18 @@ model PasswordReset {
 
   @@index([token], name: "idx_reset_token")
   @@index([userId, expiresAt], name: "idx_user_expiry")
+}
+
+/// User-reported issues (UX feedback). Mapped to DB table "Logs".
+model FeedbackLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String   @db.Text
+  pageUrl   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt], name: "idx_feedback_user_created")
+  @@index([createdAt], name: "idx_feedback_created")
+  @@map("Logs")
 }

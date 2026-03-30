@@ -11,7 +11,8 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(npx prisma db push:*)",
       "Bash(npx prisma:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

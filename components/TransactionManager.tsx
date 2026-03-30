@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Clock, Pencil, Download } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Pencil, Download } from "lucide-react";
 import FileUpload from "./FileUpload";
 import EditTransactionModal from "./EditTransactionModal";
 import {
@@ -19,8 +19,10 @@ import {
   getDeadline,
   getDeadlineStatus,
   filterTransactionsByPeriod,
+  getVatPeriodFromMonthParam,
   VATperiod
 } from "@/lib/fiscal-utils";
+import { formatMoney } from "@/lib/utils";
 
 interface Transaction {
   id: string | number; // Support both CUID (string) and legacy numeric IDs
@@ -33,22 +35,31 @@ interface Transaction {
   category?: string;
   is_vat_deductible: boolean;
   document_path?: string;
+  /** Present on rows from /api/transactions (parent passes full list). */
+  status?: "DRAFT" | "COMPLETED";
 }
 
 interface TransactionManagerProps {
   triggerRefresh: () => void;
+  /** Parent-owned list from one /api/transactions fetch (null = dashboard still loading). */
+  sharedTransactions: Transaction[] | null;
 }
 
-export default function TransactionManager({ triggerRefresh }: TransactionManagerProps) {
+export default function TransactionManager({
+  triggerRefresh,
+  sharedTransactions,
+}: TransactionManagerProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const monthFromUrl = searchParams.get("month");
+  const currentPeriod = useMemo(
+    () => getVatPeriodFromMonthParam(monthFromUrl) ?? getCurrentPeriod(),
+    [monthFromUrl]
+  );
+
   const [activeTab, setActiveTab] = useState<"income" | "expense">("income");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
-
-  // Period management
-  const [currentPeriod, setCurrentPeriod] = useState<VATperiod>(getCurrentPeriod());
 
   // Form fields
   const [date, setDate] = useState(() => {
@@ -73,11 +84,6 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
-
-  // Fetch transactions on mount
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
 
   // Auto-detect tax category when description changes
   useEffect(() => {
@@ -136,54 +142,24 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
     }
   }, [totalAmount, selectedTaxCategory, activeTab]);
 
-  const fetchTransactions = async () => {
-    try {
-      // IMPORTANT: Only fetch COMPLETED transactions (ignore DRAFT)
-      const response = await fetch("/api/transactions?status=COMPLETED");
-      const result = await response.json();
-      if (result.success) {
-        setAllTransactions(result.data);
-        // Filter by current period
-        const periodFiltered = filterTransactionsByPeriod<Transaction>(result.data, currentPeriod);
-        setTransactions(periodFiltered);
-      }
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
-    }
-  };
-
-  // Re-filter transactions when period changes
   useEffect(() => {
-    if (allTransactions.length > 0) {
-      const periodFiltered = filterTransactionsByPeriod<Transaction>(allTransactions, currentPeriod);
-      setTransactions(periodFiltered);
-    }
-  }, [currentPeriod, allTransactions]);
+    if (sharedTransactions === null) return;
+    const completed = sharedTransactions.filter((t) => t.status === "COMPLETED") as Transaction[];
+    setTransactions(filterTransactionsByPeriod<Transaction>(completed, currentPeriod));
+  }, [sharedTransactions, currentPeriod]);
 
   const handlePreviousPeriod = () => {
     const newPeriod = getPreviousPeriod(currentPeriod);
-    setCurrentPeriod(newPeriod);
-
-    // CRITICAL FIX: Calculate startMonth from periodIndex (not a property of VATperiod)
-    // Period 1 = Jan-Feb (months 1-2), Period 2 = Mar-Apr (months 3-4), etc.
     const startMonth = (newPeriod.periodIndex - 1) * 2 + 1;
-    const monthStr = `${newPeriod.year}-${String(startMonth).padStart(2, '0')}`;
+    const monthStr = `${newPeriod.year}-${String(startMonth).padStart(2, "0")}`;
     router.push(`/?month=${monthStr}`);
-
-    triggerRefresh(); // Refresh VAT report
   };
 
   const handleNextPeriod = () => {
     const newPeriod = getNextPeriod(currentPeriod);
-    setCurrentPeriod(newPeriod);
-
-    // CRITICAL FIX: Calculate startMonth from periodIndex (not a property of VATperiod)
-    // Period 1 = Jan-Feb (months 1-2), Period 2 = Mar-Apr (months 3-4), etc.
     const startMonth = (newPeriod.periodIndex - 1) * 2 + 1;
-    const monthStr = `${newPeriod.year}-${String(startMonth).padStart(2, '0')}`;
+    const monthStr = `${newPeriod.year}-${String(startMonth).padStart(2, "0")}`;
     router.push(`/?month=${monthStr}`);
-
-    triggerRefresh(); // Refresh VAT report
   };
 
   const handleCategoryChange = (categoryId: string) => {
@@ -231,9 +207,6 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
         setSelectedTaxCategory(null);
         setAutoDetected(false);
         setManualCategoryOverride(false);
-        // Refresh transactions list
-        await fetchTransactions();
-        // Trigger VAT report refresh
         triggerRefresh();
       } else {
         alert("שגיאה בשמירת העסקה: " + result.error);
@@ -252,7 +225,6 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
   };
 
   const handleEditSave = async () => {
-    await fetchTransactions();
     triggerRefresh();
     setEditModalOpen(false);
     setTransactionToEdit(null);
@@ -272,9 +244,6 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
 
       const result = await response.json();
       if (result.success) {
-        // Refresh transactions list
-        await fetchTransactions();
-        // Trigger VAT report refresh
         triggerRefresh();
       } else {
         alert("שגיאה במחיקת העסקה: " + result.error);
@@ -345,15 +314,15 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
   const displayedTransactions = transactions;
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-2xl font-bold mb-6">ניהול עסקאות</h2>
+    <div className="max-w-6xl mx-auto px-0 sm:px-0">
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+        <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">ניהול עסקאות</h2>
 
         {/* Period Management Toolbar */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-y-3">
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-y-3">
             {/* Left Side: Period Navigation */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <button
                 onClick={handlePreviousPeriod}
                 className="p-2 hover:bg-white rounded-md transition-colors"
@@ -362,7 +331,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                 <ChevronRight className="w-5 h-5 text-blue-600" />
               </button>
 
-              <div className="text-sm md:text-lg font-semibold text-gray-900 text-center">
+              <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 text-center min-w-[10rem]">
                 {getPeriodLabel(currentPeriod)}
               </div>
 
@@ -377,11 +346,11 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
               {/* Download Bi-Monthly VAT Report Button */}
               <button
                 onClick={handleDownloadCSV}
-                className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 rounded-md transition-colors text-sm font-medium mr-2"
+                className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 rounded-md transition-colors text-xs sm:text-sm font-medium sm:mr-2"
                 title="הורד דוח מע״מ דו-חודשי מקיף (הכנסות, הוצאות וסיכום)"
               >
-                <Download className="w-4 h-4" />
-                <span className="hidden md:inline">הורד דוח דו-חודשי</span>
+                <Download className="w-4 h-4 shrink-0" />
+                <span className="hidden sm:inline">הורד דוח דו-חודשי</span>
               </button>
             </div>
 
@@ -416,10 +385,10 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b">
+        <div className="flex gap-1 sm:gap-2 mb-4 sm:mb-6 border-b overflow-x-auto">
           <button
             onClick={() => setActiveTab("income")}
-            className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors shrink-0 ${
               activeTab === "income"
                 ? "border-b-2 border-green-600 text-green-700"
                 : "text-gray-500 hover:text-gray-700"
@@ -430,7 +399,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
           </button>
           <button
             onClick={() => setActiveTab("expense")}
-            className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors shrink-0 ${
               activeTab === "expense"
                 ? "border-b-2 border-red-600 text-red-700"
                 : "text-gray-500 hover:text-gray-700"
@@ -558,14 +527,14 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">סכום נטו:</span>
-                  <span className="font-bold text-gray-900 mr-2">
-                    ₪{netAmount.toFixed(2)}
+                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                    ₪{formatMoney(netAmount)}
                   </span>
                 </div>
                 <div>
                   <span className="text-gray-600">מע״מ מלא (18%):</span>
-                  <span className="font-bold text-gray-900 mr-2">
-                    ₪{vatAmount.toFixed(2)}
+                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                    ₪{formatMoney(vatAmount)}
                   </span>
                 </div>
                 {deductibleVatAmount !== null && selectedTaxCategory && (
@@ -574,8 +543,8 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                       <span className="text-gray-700 font-medium">
                         מע״מ מותר לקיזוז ({(selectedTaxCategory.vatPercentage * 100).toFixed(0)}%):
                       </span>
-                      <span className="font-bold text-green-700 text-base mr-2">
-                        ₪{deductibleVatAmount.toFixed(2)}
+                      <span className="font-bold text-green-700 text-base mr-2 tabular-nums">
+                        ₪{formatMoney(deductibleVatAmount)}
                       </span>
                       {selectedTaxCategory.vatPercentage < 1.0 && (
                         <p className="text-xs text-gray-600 mt-1">
@@ -678,8 +647,101 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
               אין עסקאות להצגה. הוסף את העסקה הראשונה שלך!
             </p>
           ) : (
-            <div className="max-h-[500px] overflow-x-auto overflow-y-auto relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-              <table className="w-full text-sm">
+            <>
+            {/* Mobile: stacked cards */}
+            <div className="space-y-3 md:hidden">
+              {displayedTransactions.map((transaction) => {
+                const taxCategory = transaction.category ? getCategoryById(transaction.category) : null;
+                return (
+                  <div
+                    key={`m-${transaction.id}`}
+                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm ring-1 ring-black/5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-gray-500 tabular-nums">
+                          {new Date(transaction.date).toLocaleDateString("he-IL")}
+                        </p>
+                        <p className="mt-1.5 text-base font-semibold leading-snug text-gray-900 line-clamp-2">
+                          {transaction.description}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-600">
+                          {taxCategory ? taxCategory.label : (transaction.category || "-")}
+                        </p>
+                      </div>
+                      <div className="text-end shrink-0">
+                        <p className="text-lg font-bold tabular-nums text-gray-900">
+                          ₪{formatMoney(transaction.amount)}
+                        </p>
+                        {transaction.type === "income" ? (
+                          <span className="mt-1 inline-flex items-center justify-end gap-1 text-xs font-medium text-green-700">
+                            <TrendingUp className="w-3.5 h-3.5 shrink-0" /> הכנסה
+                          </span>
+                        ) : (
+                          <span className="mt-1 inline-flex items-center justify-end gap-1 text-xs font-medium text-red-700">
+                            <TrendingDown className="w-3.5 h-3.5 shrink-0" /> הוצאה
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4 text-xs">
+                      <div className="min-w-0">
+                        <span className="block text-gray-500">מע״מ בקבלה</span>
+                        <p className="mt-0.5 font-semibold tabular-nums text-gray-900">
+                          ₪{formatMoney(transaction.vat_amount)}
+                        </p>
+                      </div>
+                      <div className="min-w-0 text-end">
+                        <span className="block text-gray-500">מע״מ מוכר</span>
+                        {transaction.type === "expense" ? (
+                          transaction.recognized_vat_amount !== undefined ? (
+                            <p className="mt-0.5 font-semibold tabular-nums text-green-700">
+                              ₪{formatMoney(transaction.recognized_vat_amount)}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-gray-400">טרם חושב</p>
+                          )
+                        ) : (
+                          <p className="mt-0.5 font-semibold tabular-nums text-green-700">
+                            ₪{formatMoney(transaction.vat_amount)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                      <div className="min-w-0 flex-1">
+                        <FileUpload
+                          transactionId={transaction.id}
+                          initialPath={transaction.document_path}
+                          onSuccess={triggerRefresh}
+                        />
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(transaction)}
+                          className="rounded-lg p-2.5 text-blue-600 hover:bg-blue-50"
+                          title="ערוך עסקה"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(transaction.id, transaction.description)}
+                          className="rounded-lg p-2.5 text-red-600 hover:bg-red-50"
+                          title="מחק עסקה"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block max-h-[min(70vh,560px)] overflow-x-auto overflow-y-auto relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent -mx-1 px-1">
+              <table className="w-full min-w-[720px] text-sm">
                 <thead className="sticky top-0 z-10 bg-white shadow-sm border-b-2 border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">תאריך</th>
@@ -723,18 +785,18 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                       <td className="px-4 py-3 text-gray-900">
                         {taxCategory ? taxCategory.label : (transaction.category || "-")}
                       </td>
-                      <td className="px-4 py-3 font-bold text-gray-900">
-                        ₪{transaction.amount.toFixed(2)}
+                      <td className="px-4 py-3 font-bold text-gray-900 tabular-nums">
+                        ₪{formatMoney(transaction.amount)}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        ₪{transaction.vat_amount.toFixed(2)}
+                      <td className="px-4 py-3 text-gray-600 tabular-nums">
+                        ₪{formatMoney(transaction.vat_amount)}
                       </td>
                       <td className="px-4 py-3">
                         {transaction.type === "expense" ? (
                           transaction.recognized_vat_amount !== undefined ? (
                             <div className="flex flex-col">
-                              <span className="font-bold text-green-700">
-                                ₪{transaction.recognized_vat_amount.toFixed(2)}
+                              <span className="font-bold text-green-700 tabular-nums">
+                                ₪{formatMoney(transaction.recognized_vat_amount)}
                               </span>
                               {transaction.recognized_vat_amount < transaction.vat_amount && (
                                 <span className="text-xs text-orange-600">
@@ -746,14 +808,14 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                             <span className="text-gray-400 text-sm">טרם חושב</span>
                           )
                         ) : (
-                          <span className="text-green-700 font-bold">₪{transaction.vat_amount.toFixed(2)}</span>
+                          <span className="text-green-700 font-bold tabular-nums">₪{formatMoney(transaction.vat_amount)}</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <FileUpload
                           transactionId={transaction.id}
                           initialPath={transaction.document_path}
-                          onSuccess={fetchTransactions}
+                          onSuccess={triggerRefresh}
                         />
                       </td>
                       <td className="px-4 py-3 text-center">
@@ -780,6 +842,7 @@ export default function TransactionManager({ triggerRefresh }: TransactionManage
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>

@@ -12,9 +12,11 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-server";
 import { getCategoryById } from "@/lib/tax-knowledge";
+import { formatIsraeliPhoneForDisplay } from "@/lib/phone-utils";
 
 // GET: Fetch all transactions for the authenticated user
 export async function GET(request: NextRequest) {
@@ -25,43 +27,107 @@ export async function GET(request: NextRequest) {
     // CRITICAL: Convert userId to string for Prisma
     const userIdStr = String(userId);
 
-    console.log(`📥 GET /api/transactions - User: ${userIdStr}`);
+    const { searchParams } = new URL(request.url);
+
+    /** Lightweight fingerprint for dashboard polling (count + newest row). Uses idx_user_created_at. */
+    if (searchParams.get("summary") === "1") {
+      const agg = await prisma.transaction.aggregate({
+        where: { userId: userIdStr },
+        _count: { _all: true },
+        _max: { createdAt: true },
+      });
+      return NextResponse.json({
+        success: true,
+        summary: {
+          count: agg._count._all,
+          latestCreatedAt: agg._max.createdAt?.toISOString() ?? null,
+        },
+      });
+    }
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(`📥 GET /api/transactions - User: ${userIdStr}`);
+    }
 
     // Get filters from query params
-    const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
+    const statusParam = searchParams.get("status");
+    const includeProfile = searchParams.get("includeProfile") === "1";
 
-    console.log(`   Filters: startDate=${startDate}, endDate=${endDate}`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `   Filters: startDate=${startDate}, endDate=${endDate}, includeProfile=${includeProfile}`
+      );
+    }
 
     // Build Prisma where clause
-    const where: any = {
+    const where: Prisma.TransactionWhereInput = {
       userId: userIdStr,
     };
 
-    // Add date filtering if provided
-    if (startDate || endDate) {
+    // Optional status filtering (export / VAT report / etc.)
+    if (statusParam) {
+      const normalizedStatus = statusParam.toString().toUpperCase();
+      if (normalizedStatus === "DRAFT" || normalizedStatus === "COMPLETED") {
+        where.status = normalizedStatus;
+      }
+    }
+
+    // Date range: when both bounds set, return COMPLETED in range OR any DRAFT (inbox always sees pending drafts).
+    if (startDate && endDate && !statusParam) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      where.OR = [
+        { status: "DRAFT" },
+        {
+          status: "COMPLETED",
+          date: { gte: start, lte: end },
+        },
+      ];
+    } else if (startDate || endDate) {
       where.date = {};
       if (startDate) {
         where.date.gte = new Date(startDate);
       }
       if (endDate) {
-        // Include the entire end date (23:59:59)
         const endDateTime = new Date(endDate);
         endDateTime.setHours(23, 59, 59, 999);
         where.date.lte = endDateTime;
       }
     }
 
-    // Fetch transactions from Prisma
-    const transactions = await prisma.transaction.findMany({
-      where,
-      orderBy: { date: 'desc' },
+    // Global fingerprint + hasAny (parallel with list; cheap with idx_user_created_at)
+    const globalAggPromise = prisma.transaction.aggregate({
+      where: { userId: userIdStr },
+      _count: { _all: true },
+      _max: { createdAt: true },
     });
+
+    // Fetch transactions (+ optional profile)
+    const [transactions, globalAgg, profileUser] = await Promise.all([
+      prisma.transaction.findMany({
+        where,
+        orderBy: { date: "desc" },
+      }),
+      globalAggPromise,
+      includeProfile
+        ? prisma.user.findUnique({
+            where: { id: userIdStr },
+            select: {
+              whatsappPhone: true,
+              whatsappPhone2: true,
+              profile: true,
+            },
+          })
+        : Promise.resolve(null),
+    ]);
 
     // Map Prisma fields to frontend-expected format (snake_case for backward compatibility)
     const mappedTransactions = transactions.map(tx => {
       const isDraft = tx.status === 'DRAFT';
+      const isVatDeductible = tx.type === "EXPENSE" ? tx.isRecognized : true;
 
       return {
         id: tx.id,
@@ -74,7 +140,7 @@ export async function GET(request: NextRequest) {
         description: tx.description || tx.merchant,
         merchant: tx.merchant,
         category: tx.category,
-        is_vat_deductible: true, // Prisma doesn't track this, assume true
+        is_vat_deductible: isVatDeductible,
         document_path: tx.receiptUrl, // Map receiptUrl → document_path
         receiptUrl: tx.receiptUrl,
         status: isDraft ? 'DRAFT' : 'COMPLETED',
@@ -86,9 +152,46 @@ export async function GET(request: NextRequest) {
     const draftCount = mappedTransactions.filter(tx => tx.status === 'DRAFT').length;
     const completedCount = mappedTransactions.length - draftCount;
 
-    console.log(`✅ Found ${transactions.length} transaction(s): ${completedCount} completed, ${draftCount} drafts`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `✅ Found ${transactions.length} transaction(s): ${completedCount} completed, ${draftCount} drafts`
+      );
+    }
 
-    return NextResponse.json({ success: true, data: mappedTransactions });
+    const payload: {
+      success: boolean;
+      data: typeof mappedTransactions;
+      profile?: Record<string, unknown>;
+      meta?: {
+        summary: { count: number; latestCreatedAt: string | null };
+        hasAnyTransaction: boolean;
+      };
+    } = {
+      success: true,
+      data: mappedTransactions,
+      meta: {
+        summary: {
+          count: globalAgg._count._all,
+          latestCreatedAt: globalAgg._max.createdAt?.toISOString() ?? null,
+        },
+        hasAnyTransaction: globalAgg._count._all > 0,
+      },
+    };
+
+    if (includeProfile && profileUser) {
+      const profile = profileUser.profile ?? null;
+      payload.profile = {
+        ...(profile ?? {}),
+        whatsapp_phone: profileUser.whatsappPhone
+          ? formatIsraeliPhoneForDisplay(profileUser.whatsappPhone)
+          : null,
+        whatsapp_phone_2: profileUser.whatsappPhone2
+          ? formatIsraeliPhoneForDisplay(profileUser.whatsappPhone2)
+          : null,
+      };
+    }
+
+    return NextResponse.json(payload);
   } catch (error: any) {
     console.error("❌ Error fetching transactions:", error);
 
@@ -117,7 +220,19 @@ export async function POST(request: NextRequest) {
     const userIdStr = String(userId);
 
     const body = await request.json();
-    const { type, amount, vatAmount: bodyVatAmount, date, description, merchant, category, receiptUrl, document_path, status } = body;
+    const {
+      type,
+      amount,
+      vatAmount: bodyVatAmount,
+      date,
+      description,
+      merchant,
+      category,
+      receiptUrl,
+      document_path,
+      status,
+      is_vat_deductible,
+    } = body;
 
     // Use receiptUrl or document_path (support both field names)
     const finalReceiptUrl = receiptUrl || document_path || null;
@@ -156,14 +271,29 @@ export async function POST(request: NextRequest) {
       : finalAmount > 0 ? finalAmount * vatRate / (1 + vatRate) : 0;
     const netAmount = finalAmount > 0 ? finalAmount - vatAmount : 0;
 
-    // Calculate RECOGNIZED VAT based on category rules (for expenses only)
+    // Calculate RECOGNIZED VAT based on category rules + UI choice (is_vat_deductible)
     let recognizedVatAmount = vatAmount; // Default: full VAT for income
-    if (finalType === 'EXPENSE') {
+    let isRecognized = true;
+    if (finalType === "EXPENSE") {
       const taxCategory = getCategoryById(finalCategory);
       const vatPercentage = taxCategory?.vatPercentage ?? 1.0; // Default to 100% if category not found
-      recognizedVatAmount = vatAmount * vatPercentage;
 
-      console.log(`   💰 VAT Calculation: Total VAT: ₪${vatAmount.toFixed(2)}, Category: ${finalCategory}, Recognition: ${(vatPercentage * 100).toFixed(0)}%, Recognized: ₪${recognizedVatAmount.toFixed(2)}`);
+      // If UI explicitly set it, respect that. Otherwise (e.g. AI quick draft), infer from category.
+      if (typeof is_vat_deductible === "boolean") {
+        isRecognized = is_vat_deductible;
+      } else {
+        isRecognized = vatPercentage > 0;
+      }
+
+      recognizedVatAmount = isRecognized ? vatAmount * vatPercentage : 0;
+
+      console.log(
+        `   💰 VAT Calculation: Total VAT: ₪${vatAmount.toFixed(
+          2
+        )}, Category: ${finalCategory}, is_vat_deductible: ${isRecognized}, Recognition: ${(
+          vatPercentage * 100
+        ).toFixed(0)}%, Recognized: ₪${recognizedVatAmount.toFixed(2)}`
+      );
     }
 
     // Create transaction in Prisma
@@ -182,6 +312,7 @@ export async function POST(request: NextRequest) {
         category: finalCategory,
         receiptUrl: finalReceiptUrl,
         status: finalStatus,
+        isRecognized,
       },
     });
 
@@ -201,7 +332,7 @@ export async function POST(request: NextRequest) {
       description: transaction.description || transaction.merchant,
       merchant: transaction.merchant,
       category: transaction.category,
-      is_vat_deductible: true,
+      is_vat_deductible: transaction.type === "EXPENSE" ? transaction.isRecognized : true,
       document_path: transaction.receiptUrl,
       receiptUrl: transaction.receiptUrl,
       status: isDraft ? 'DRAFT' : 'COMPLETED',
@@ -239,7 +370,17 @@ export async function PUT(request: NextRequest) {
     const userIdStr = String(userId);
 
     const body = await request.json();
-    const { id, amount, description, date, category, merchant, type, status } = body;
+    const {
+      id,
+      amount,
+      description,
+      date,
+      category,
+      merchant,
+      type,
+      status,
+      is_vat_deductible,
+    } = body;
 
     console.log(`📝 PUT /api/transactions - User: ${userIdStr}, ID: ${id}`);
 
@@ -269,30 +410,76 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // -----------------------------
+    // Coherent VAT computation
+    // (Fixes drift when both amount + category change together)
+    // -----------------------------
+    const finalType = type ? type.toUpperCase() : existingTransaction.type;
+    if (finalType !== "INCOME" && finalType !== "EXPENSE") {
+      return NextResponse.json(
+        { success: false, error: "Type must be 'income' or 'expense'" },
+        { status: 400 }
+      );
+    }
+
+    const finalAmount =
+      amount !== undefined ? parseFloat(amount) : existingTransaction.amount;
+
+    const vatRate = existingTransaction.vatRate ?? 0.18;
+    const computedVatAmount =
+      finalAmount > 0 ? (finalAmount * vatRate) / (1 + vatRate) : 0;
+    const computedNetAmount = finalAmount - computedVatAmount;
+
+    // If amount didn't change, reuse stored VAT to avoid rounding drift
+    const vatAmountToUse =
+      amount !== undefined
+        ? computedVatAmount
+        : existingTransaction.vatAmount;
+
+    const netAmountToUse =
+      amount !== undefined
+        ? computedNetAmount
+        : existingTransaction.netAmount;
+
+    const finalCategory =
+      category !== undefined
+        ? (category || "Uncategorized")
+        : existingTransaction.category;
+
+    // UI may explicitly set deductibility; otherwise keep stored value
+    let finalIsRecognized = existingTransaction.isRecognized;
+    if (is_vat_deductible !== undefined) {
+      finalIsRecognized = !!is_vat_deductible;
+    }
+
+    // For income, VAT is always treated as recognized
+    if (finalType === "INCOME") {
+      finalIsRecognized = true;
+    }
+
+    let finalRecognizedVatAmount = vatAmountToUse;
+    if (finalType === "EXPENSE") {
+      const taxCategory = getCategoryById(finalCategory);
+      const vatPercentage = taxCategory?.vatPercentage ?? 1.0;
+      finalRecognizedVatAmount = finalIsRecognized
+        ? vatAmountToUse * vatPercentage
+        : 0;
+    }
+
+    const roundedRecognizedVatAmount = parseFloat(
+      finalRecognizedVatAmount.toFixed(2)
+    );
+    const roundedVatAmount = parseFloat(vatAmountToUse.toFixed(2));
+    const roundedNetAmount = parseFloat(netAmountToUse.toFixed(2));
+
     // Prepare updates
     const updates: any = {};
 
-    // Handle amount updates (recalculate VAT)
+    // Handle amount updates (VAT + net)
     if (amount !== undefined) {
-      const totalAmount = parseFloat(amount);
-      const vatRate = 0.18;
-      const vatAmount = totalAmount * vatRate / (1 + vatRate);
-      const netAmount = totalAmount - vatAmount;
-
-      updates.amount = totalAmount;
-      updates.vatAmount = parseFloat(vatAmount.toFixed(2));
-      updates.netAmount = parseFloat(netAmount.toFixed(2));
-
-      // Recalculate recognized VAT (if category is known)
-      if (existingTransaction.type === 'EXPENSE') {
-        const categoryId = category || existingTransaction.category;
-        const taxCategory = getCategoryById(categoryId);
-        const vatPercentage = taxCategory?.vatPercentage ?? 1.0;
-        const recognizedVatAmount = vatAmount * vatPercentage;
-        updates.recognizedVatAmount = parseFloat(recognizedVatAmount.toFixed(2));
-
-        console.log(`   💰 VAT Update: Total VAT: ₪${vatAmount.toFixed(2)}, Recognition: ${(vatPercentage * 100).toFixed(0)}%, Recognized: ₪${recognizedVatAmount.toFixed(2)}`);
-      }
+      updates.amount = finalAmount;
+      updates.vatAmount = roundedVatAmount;
+      updates.netAmount = roundedNetAmount;
     }
 
     // Handle merchant/description
@@ -311,24 +498,31 @@ export async function PUT(request: NextRequest) {
 
     // Handle category (and recalculate recognized VAT for expenses)
     if (category !== undefined) {
-      updates.category = category || 'Uncategorized';
-
-      // If category changes for an expense, recalculate recognized VAT
-      if (existingTransaction.type === 'EXPENSE') {
-        const taxCategory = getCategoryById(category || 'Uncategorized');
-        const vatPercentage = taxCategory?.vatPercentage ?? 1.0;
-        const recognizedVatAmount = existingTransaction.vatAmount * vatPercentage;
-        updates.recognizedVatAmount = parseFloat(recognizedVatAmount.toFixed(2));
-
-        console.log(`   📝 Category Changed: ${existingTransaction.category} → ${category}, VAT Recognition: ${(vatPercentage * 100).toFixed(0)}%`);
-      }
+      updates.category = finalCategory;
     }
 
     // Handle type
     if (type !== undefined) {
-      const normalizedType = type.toUpperCase();
-      if (normalizedType === "INCOME" || normalizedType === "EXPENSE") {
-        updates.type = normalizedType;
+      updates.type = finalType;
+    }
+
+    // Persist UI deductibility choice (maps to Prisma `isRecognized`)
+    if (is_vat_deductible !== undefined) {
+      updates.isRecognized = finalIsRecognized;
+    }
+
+    // Recalculate recognized VAT if any of its inputs changed
+    const shouldRecalculateRecognizedVat =
+      amount !== undefined ||
+      category !== undefined ||
+      type !== undefined ||
+      is_vat_deductible !== undefined;
+
+    if (shouldRecalculateRecognizedVat) {
+      updates.recognizedVatAmount = roundedRecognizedVatAmount;
+      // Ensure consistency when type flips expense <-> income
+      if (finalType === "INCOME") {
+        updates.isRecognized = true;
       }
     }
 
@@ -359,7 +553,10 @@ export async function PUT(request: NextRequest) {
       description: updatedTransaction.description || updatedTransaction.merchant,
       merchant: updatedTransaction.merchant,
       category: updatedTransaction.category,
-      is_vat_deductible: true,
+      is_vat_deductible:
+        updatedTransaction.type === "EXPENSE"
+          ? updatedTransaction.isRecognized
+          : true,
       document_path: updatedTransaction.receiptUrl,
       receiptUrl: updatedTransaction.receiptUrl,
       status: isDraft ? 'DRAFT' : 'COMPLETED',

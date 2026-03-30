@@ -50,6 +50,7 @@ interface WhatsAppWebhookEntry {
 
 // GET: Webhook verification (required by WhatsApp)
 export async function GET(request: NextRequest) {
+  console.log("🚀 Webhook trigger received!");
   const searchParams = request.nextUrl.searchParams;
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
@@ -81,6 +82,11 @@ export async function GET(request: NextRequest) {
 
 // POST: Handle incoming WhatsApp messages
 export async function POST(request: NextRequest) {
+  console.log(
+    "[WhatsApp POST] hit server",
+    new Date().toISOString(),
+    request.nextUrl?.pathname ?? ""
+  );
   try {
     const body = await request.json();
     console.log("📲 WhatsApp webhook received:", JSON.stringify(body, null, 2));
@@ -103,16 +109,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: "no_changes" }, { status: 200 });
     }
 
-    const messages = changes.value?.messages;
+    const value = changes.value;
+    const messages = value?.messages;
     if (!messages || messages.length === 0) {
       console.log("⚠️ No messages in webhook");
       return NextResponse.json({ status: "no_messages" }, { status: 200 });
     }
 
-    // Process each message
+    const firstMsg = messages[0];
+    console.log("[WhatsApp POST] first message id (wamid for reactions):", firstMsg?.id);
+    console.log("[WhatsApp POST] first message keys:", firstMsg ? Object.keys(firstMsg) : []);
+
+    const metadata = value?.metadata;
+
+    // Process each message (reaction + receipt handling stay in this request — no separate session)
     for (const message of messages) {
       try {
-        await processWhatsAppMessage(message);
+        await processWhatsAppMessage(message, metadata);
       } catch (error) {
         console.error("❌ Error processing message:", error);
         // Continue processing other messages even if one fails
@@ -128,9 +141,129 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function processWhatsAppMessage(message: WhatsAppMessage) {
+interface WhatsAppWebhookMetadata {
+  display_phone_number?: string;
+  phone_number_id?: string;
+}
+
+/**
+ * Send ✅ reaction on the user's incoming message.
+ * Uses the **incoming** webhook message `id` (wamid) as `reaction.message_id` — required by Meta.
+ * If this fails, check Meta App Dashboard: WhatsApp → API Setup → permissions (whatsapp_business_messaging).
+ */
+async function sendWhatsAppReaction(
+  phoneNumberId: string,
+  toWaId: string,
+  incomingMessageId: string
+): Promise<void> {
+  console.log("\n========== [REACTION] sendWhatsAppReaction ==========");
+  console.log("[REACTION] phone_number_id (path):", phoneNumberId);
+  console.log("[REACTION] to (recipient WA id, must match message sender):", toWaId);
   console.log(
-    `📱 Processing message from ${message.from}, type: ${message.type}`
+    "[REACTION] message_id (incoming message wamid — must be exact from webhook):",
+    incomingMessageId
+  );
+
+  if (!WHATSAPP_TOKEN) {
+    console.warn("⚠️ [REACTION] WHATSAPP_TOKEN missing — skipping reaction");
+    console.log("========================================\n");
+    return;
+  }
+
+  if (!incomingMessageId?.trim()) {
+    console.error("❌ [REACTION] incomingMessageId is empty — cannot react");
+    console.log("========================================\n");
+    return;
+  }
+
+  const url = `${WHATSAPP_API_URL}/${phoneNumberId}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual" as const,
+    to: toWaId,
+    type: "reaction" as const,
+    reaction: {
+      message_id: incomingMessageId,
+      emoji: "✅",
+    },
+  };
+
+  console.log("[REACTION] POST URL:", url);
+  console.log("[REACTION] Request body:", JSON.stringify(payload, null, 2));
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.error("❌ [REACTION] Network/fetch error:", err);
+    console.log("========================================\n");
+    return;
+  }
+
+  const responseText = await res.text();
+  console.log("[REACTION] HTTP status:", res.status, res.statusText);
+
+  let parsedBody: unknown = null;
+  try {
+    parsedBody = responseText ? JSON.parse(responseText) : null;
+    console.log("[REACTION] Response JSON:", JSON.stringify(parsedBody, null, 2));
+  } catch {
+    console.log("[REACTION] Response raw (non-JSON):", responseText.slice(0, 2000));
+  }
+
+  if (!res.ok) {
+    console.error("❌ [REACTION] Meta API error — check token, phone_number_id, and app permissions.");
+    if (parsedBody && typeof parsedBody === "object" && parsedBody !== null && "error" in parsedBody) {
+      const errObj = (parsedBody as {
+        error?: {
+          message?: string;
+          code?: number;
+          error_subcode?: number;
+          type?: string;
+          fbtrace_id?: string;
+          error_data?: unknown;
+        };
+      }).error;
+      console.error("[REACTION] Meta error.message:", errObj?.message);
+      console.error(
+        "[REACTION] Meta error.code:",
+        errObj?.code,
+        "| error_subcode:",
+        errObj?.error_subcode,
+        "| type:",
+        errObj?.type,
+        "| fbtrace_id:",
+        errObj?.fbtrace_id
+      );
+      console.error("[REACTION] Meta error (full JSON):", JSON.stringify(parsedBody, null, 2));
+      console.error("[REACTION] Hint: Meta App Dashboard → WhatsApp → API Setup — token, Phone number ID, and whatsapp_business_messaging.");
+    } else {
+      console.error("[REACTION] Non-JSON or unexpected body:", responseText.slice(0, 2000));
+    }
+    console.log("========================================\n");
+    return;
+  }
+
+  const messages = parsedBody && typeof parsedBody === "object" && parsedBody !== null && "messages" in parsedBody
+    ? (parsedBody as { messages?: Array<{ id?: string }> }).messages
+    : undefined;
+  console.log("✅ [REACTION] Meta accepted reaction. messages:", messages);
+  console.log("========================================\n");
+}
+
+async function processWhatsAppMessage(
+  message: WhatsAppMessage,
+  metadata?: WhatsAppWebhookMetadata
+) {
+  console.log(
+    `[WhatsApp POST] processWhatsAppMessage — from=${message.from} type=${message.type} id=${message.id} (reaction.message_id must match this wamid)`
   );
 
   // Determine if this is a receipt we can process
@@ -154,27 +287,42 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
       console.log(
         `⚠️ Document type not supported: ${message.document.mime_type}, ignoring`
       );
+      console.log(
+        "[REACTION] Skipped — early exit: unsupported document MIME (no receipt processing, no reaction)"
+      );
       return;
     }
   } else {
     console.log(
       `⚠️ Message type not supported: ${message.type}, ignoring`
     );
+    console.log(
+      "[REACTION] Skipped — early exit: message type is not image/document (reaction only runs after successful draft)"
+    );
     return;
   }
 
   if (!mediaId || !mimeType) {
     console.log("⚠️ No valid media found in message");
+    console.log("[REACTION] Skipped — early exit: no mediaId/mimeType");
     return;
   }
 
-  // Find user by WhatsApp phone number
+  // Find user by primary or secondary WhatsApp number (same format as webhook "from")
   const user = await prisma.user.findFirst({
-    where: { whatsappPhone: message.from },
+    where: {
+      OR: [
+        { whatsappPhone: message.from },
+        { whatsappPhone2: message.from },
+      ],
+    },
   });
 
   if (!user) {
     console.log(`⚠️ No user found with WhatsApp phone: ${message.from}`);
+    console.log(
+      "[REACTION] Skipped — early exit: no linked user for this sender (cannot create draft; reaction not sent)"
+    );
     // TODO: Send WhatsApp message to user explaining they need to link their account
     return;
   }
@@ -186,6 +334,9 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
   const downloadResult = await downloadWhatsAppMedia(mediaId);
   if (!downloadResult.success || !downloadResult.buffer) {
     console.error("❌ Failed to download media from WhatsApp");
+    console.log(
+      "[REACTION] Skipped — early exit: media download failed (no draft; reaction not sent)"
+    );
     return;
   }
 
@@ -203,6 +354,9 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
 
   if (!processingResult.success) {
     console.error("❌ Receipt processing failed:", processingResult.error);
+    console.log(
+      "[REACTION] Skipped — early exit: processReceipt failed (no draft; reaction not sent)"
+    );
     return;
   }
 
@@ -225,6 +379,26 @@ async function processWhatsAppMessage(message: WhatsAppMessage) {
   console.log(`✅ [WEBHOOK] Merchant: ${transaction.merchant}`);
   console.log(`✅ [WEBHOOK] Amount: ${transaction.amount}`);
   console.log(`✅ [WEBHOOK] Date: ${transaction.date}`);
+
+  // Immediate ✅ reaction on the incoming receipt message (same request — no extra session)
+  const phoneNumberId = metadata?.phone_number_id;
+  console.log("[REACTION] Pre-check — metadata:", JSON.stringify(metadata ?? null));
+  console.log("[REACTION] Pre-check — message.id (wamid for reaction):", message.id);
+  console.log("[REACTION] Pre-check — message.from (to field):", message.from);
+
+  if (!phoneNumberId) {
+    console.warn(
+      "⚠️ [REACTION] Skipped: metadata.phone_number_id missing from webhook (cannot build /messages URL)"
+    );
+  } else if (!message.id) {
+    console.warn("⚠️ [REACTION] Skipped: message.id missing on webhook payload");
+  } else {
+    try {
+      await sendWhatsAppReaction(phoneNumberId, message.from, message.id);
+    } catch (reactionErr) {
+      console.error("❌ [REACTION] Non-fatal:", reactionErr);
+    }
+  }
 }
 
 async function downloadWhatsAppMedia(

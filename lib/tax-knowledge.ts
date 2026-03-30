@@ -402,6 +402,82 @@ export const TAX_CATEGORIES: TaxCategory[] = [
 ];
 
 /**
+ * Canonical expense category ids stored in `Transaction.category` (Prisma).
+ * Single source of truth for receipt AI and UI — not a separate DB table.
+ */
+export const TAX_CATEGORY_IDS: readonly string[] = TAX_CATEGORIES.map((c) => c.id);
+
+export const DEFAULT_RECEIPT_CATEGORY_ID = "other" as const;
+
+const CANONICAL_CATEGORY_ID_SET = new Set<string>(TAX_CATEGORY_IDS);
+
+/**
+ * Legacy or invented AI strings (old prompts / English labels) → canonical `TaxCategory.id`.
+ */
+const RECEIPT_CATEGORY_ALIASES: Record<string, string> = {
+  "meals-entertainment": "business-meals",
+  meals_entertainment: "business-meals",
+  mealsentertainment: "business-meals",
+  "vehicle-maintenance": "vehicle-fuel",
+  "vehicle-insurance": "insurance",
+  "home-office": "utilities",
+  "legal-accounting": "professional-services",
+  "health-safety": "other",
+  "office-supplies": "office-equipment",
+  office_supplies: "office-equipment",
+  fuel: "vehicle-fuel",
+  gas: "vehicle-fuel",
+  food: "business-meals",
+  restaurant: "business-meals",
+  meals: "business-meals",
+  entertainment: "business-meals",
+  technology: "software",
+  electronics: "office-equipment",
+  misc: "other",
+  miscellaneous: "other",
+  general: "other",
+  "food-and-beverage": "business-meals",
+  "food-and-beverages": "business-meals",
+};
+
+/**
+ * Maps Gemini / user input to a valid `TaxCategory.id`. Never returns an unknown id.
+ * Defaults to `other` when unsure or invalid.
+ */
+export function normalizeReceiptCategoryId(raw: unknown): string {
+  const fallback = DEFAULT_RECEIPT_CATEGORY_ID;
+  if (raw == null) return fallback;
+  const s0 = String(raw).trim();
+  if (!s0) return fallback;
+  const hyphenated = s0.toLowerCase().replace(/\s+/g, "-");
+  if (CANONICAL_CATEGORY_ID_SET.has(hyphenated)) return hyphenated;
+  const aliased = RECEIPT_CATEGORY_ALIASES[hyphenated];
+  if (aliased && CANONICAL_CATEGORY_ID_SET.has(aliased)) return aliased;
+  return fallback;
+}
+
+/** Block for Gemini prompts: id + Hebrew label per line. */
+export function getReceiptCategoryPromptBlock(): string {
+  return TAX_CATEGORIES.map((c) => `- "${c.id}" — ${c.label}`).join("\n");
+}
+
+/**
+ * Strict category rules + allowed ids for receipt scanning prompts (Gemini).
+ * Transaction.category in Prisma stores the id string from TAX_CATEGORIES — no separate Category table.
+ */
+export function getReceiptScanCategoryInstructions(): string {
+  return [
+    "CATEGORY — field name in JSON: suggestedCategory",
+    "- You MUST output ONLY one of the exact id strings listed below (lowercase English, hyphens). Example: office-equipment, business-meals, other.",
+    "- NEVER output Hebrew, English labels, or invented names (e.g. \"Office Supplies\", \"Food and Dining\", \"General\").",
+    "- NEVER invent a new id. If nothing fits or you are uncertain, use exactly: other",
+    "",
+    "ALLOWED CATEGORY IDS (use the quoted id token only):",
+    getReceiptCategoryPromptBlock(),
+  ].join("\n");
+}
+
+/**
  * Helper function to find category by ID
  */
 export function getCategoryById(id: string): TaxCategory | undefined {

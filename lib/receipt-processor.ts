@@ -13,31 +13,10 @@
 
 import { supabase } from "@/lib/supabase";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-
-// MUST match scan-receipt/route.ts CATEGORY_IDS exactly
-const CATEGORY_IDS = [
-  "office-equipment",
-  "software",
-  "software-foreign",
-  "software-local",
-  "professional-services",
-  "vehicle-fuel",
-  "vehicle-maintenance",
-  "vehicle-insurance",
-  "communication",
-  "meals-entertainment",
-  "travel",
-  "home-office",
-  "rent",
-  "utilities",
-  "education",
-  "marketing",
-  "legal-accounting",
-  "insurance",
-  "health-safety",
-  "gifts",
-  "other",
-];
+import {
+  getReceiptScanCategoryInstructions,
+  normalizeReceiptCategoryId,
+} from "@/lib/tax-knowledge";
 
 const SCAN_TIMEOUT_MS = 45_000;
 
@@ -130,7 +109,6 @@ export async function processReceiptWithGemini(
 
     console.log("🤖 [GEMINI] Model initialized: gemini-2.5-flash");
 
-    // EXACT prompt from scan-receipt/route.ts
     const prompt = `You are a strict Israeli VAT receipt scanner for an Authorized Dealer (עוסק מורשה).
 
 You will receive either an image (JPEG, PNG, WebP) or a PDF document containing a receipt. Extract the data accurately.
@@ -142,6 +120,8 @@ CRITICAL ACCURACY RULES — READ BEFORE ANALYZING:
 - For amounts: look for keywords like "סה"כ לתשלום", "סה"כ", "Total", or "מע"מ". Confidently extract the numeric values associated with them. Extract the numeric amount but also DETECT the currency symbol. Do your best to find the final total and VAT — only return null for amounts if no numeric value can be found at all.
 - For PDFs: Extract text and numbers from all pages. Focus on the first page for receipt data.
 
+${getReceiptScanCategoryInstructions()}
+
 Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
 
 {
@@ -150,14 +130,13 @@ Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
   "totalAmount": total including VAT as number (or null if no numeric value found),
   "vatAmount": VAT amount shown on receipt as number, or calculate as totalAmount * 0.18 / 1.18 (or null if not found),
   "detectedCurrency": "ILS" | "USD" | "EUR" | "GBP" | null (detect from symbols like ₪, $, €, £ or text like "USD", "EUR", "ILS", "NIS"),
-  "suggestedCategory": one of exactly: ${CATEGORY_IDS.join(", ")} (or null),
+  "suggestedCategory": "exact id string from ALLOWED CATEGORY IDS above (use other if unsure)",
   "confidence": "high" | "medium" | "low"
 }
 
 Additional rules:
 - totalAmount includes VAT (18% Israeli VAT rate for ILS receipts)
 - If the receipt shows net + VAT separately, sum them for totalAmount
-- For category, pick the best match from the list or null if unsure
 - ALWAYS detect the currency: look for ₪ or "ILS" or "NIS" = "ILS", $ or "USD" = "USD", € or "EUR" = "EUR", £ or "GBP" = "GBP"
 - If no clear currency symbol, return null for detectedCurrency`;
 
@@ -218,11 +197,7 @@ Additional rules:
       typeof parsed.vatAmount === "number" && parsed.vatAmount > 0
         ? Math.round(parsed.vatAmount * 100) / 100
         : null;
-    const category =
-      typeof parsed.suggestedCategory === "string" &&
-      CATEGORY_IDS.includes(parsed.suggestedCategory)
-        ? parsed.suggestedCategory
-        : null;
+    const category = normalizeReceiptCategoryId(parsed.suggestedCategory);
     const confidence = ["high", "medium", "low"].includes(
       parsed.confidence as string
     )
@@ -245,7 +220,8 @@ Additional rules:
     if (!date) console.warn("⚠️ [GEMINI] Date is null");
     if (!totalAmount) console.warn("⚠️ [GEMINI] TotalAmount is null");
     if (!vatAmount) console.warn("⚠️ [GEMINI] VatAmount is null");
-    if (!category) console.warn("⚠️ [GEMINI] Category is null or invalid");
+    if (category === "other" && parsed.suggestedCategory && String(parsed.suggestedCategory).trim())
+      console.warn("⚠️ [GEMINI] Category normalized to other (was:", parsed.suggestedCategory, ")");
 
     return scanResult;
   } catch (error) {

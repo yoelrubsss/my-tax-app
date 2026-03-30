@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { isAdminUser } from "@/lib/admin";
 
 // POST: Register new user
 export async function POST(request: NextRequest) {
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
         name: newUser.name,
         dealer_number: newUser.dealerNumber,
         business_name: newUser.profile?.businessName,
+        is_admin: isAdminUser(newUser.email, newUser.id),
       },
     }, { status: 201 });
 

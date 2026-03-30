@@ -1,14 +1,30 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ComponentProps } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Receipt, LogOut, User, TrendingUp, TrendingDown, DollarSign, Settings } from "lucide-react";
+import {
+  Receipt,
+  LogOut,
+  User,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Settings,
+  CheckCircle2,
+  Circle,
+  MessageCircle,
+  LayoutDashboard,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import TransactionManager from "@/components/TransactionManager";
 import DraftsInbox from "@/components/DraftsInbox";
 import TransactionEditor from "@/components/TransactionEditor";
 import BulkUploadArea from "@/components/BulkUploadArea";
 import AIChat from "@/components/AIChat";
+import ReportIssueFAB from "@/components/ReportIssueFAB";
+import { formatMoney } from "@/lib/utils";
+import { getVatPeriodDateBoundsFromMonthParam } from "@/lib/fiscal-utils";
 
 interface Transaction {
   id: string | number; // Support both CUID and legacy numeric IDs
@@ -34,6 +50,8 @@ interface DashboardStats {
   expenseVAT: number;
 }
 
+const ONBOARDING_DISMISSED_KEY = "mytax_onboarding_dismissed";
+
 export default function HomeContent() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -54,245 +72,381 @@ export default function HomeContent() {
     expenseVAT: 0,
   });
   const [loadingStats, setLoadingStats] = useState(true);
+  /** True once we know the user has at least one transaction (any status). Used for empty-state onboarding only. */
+  const [hasAnyTransactions, setHasAnyTransactions] = useState<boolean | null>(null);
+  /** Single source for dashboard lists: one GET /api/transactions per refresh (null = first load not finished). */
+  const [transactionsCache, setTransactionsCache] = useState<Transaction[] | null>(null);
+
+  const [onboardingLSReady, setOnboardingLSReady] = useState(false);
+  const [onboardingPhase, setOnboardingPhase] = useState<"tasks" | "success" | "hidden">("tasks");
+  const [settingsSnapshot, setSettingsSnapshot] = useState<{
+    whatsapp_phone: string | null;
+    whatsapp_phone_2: string | null;
+    business_name: string | null;
+  } | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  /** Increments every 10s while tab is visible — silent data refresh (WhatsApp drafts, etc.). */
+  const [silentPollTick, setSilentPollTick] = useState(0);
+  /** Global fingerprint (matches GET ?summary=1 and response meta.summary) — not period-scoped. */
+  const dataFingerprintRef = useRef<{ count: number; latestCreatedAt: string | null } | null>(null);
 
   const triggerRefresh = () => {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // PERFORMANCE OPTIMIZED: Fetch stats with stable reference
-  // RACE CONDITION PROTECTED: Uses AbortController for cancellation
-  // ═══════════════════════════════════════════════════════════════
-  const fetchStats = useCallback(async (signal?: AbortSignal) => {
-    try {
-      setLoadingStats(true);
-
-      // Clear old stats immediately to prevent ghosting
-      setStats({
-        totalIncome: 0,
-        totalExpenses: 0,
-        netProfit: 0,
-        vatToPay: 0,
-        incomeVAT: 0,
-        expenseVAT: 0,
-      });
-
-      // Get date range from URL query params
-      const monthParam = searchParams?.get("month");
-      let startDate: string | undefined;
-      let endDate: string | undefined;
-
-      if (monthParam) {
-        // monthParam format: YYYY-MM (always odd month - period start)
-        const [year, month] = monthParam.split("-");
-        const yearNum = parseInt(year);
-        const monthNum = parseInt(month);
-
-        // BI-MONTHLY LOGIC: Filter from start of current month to end of NEXT month
-        // Example: Jan (01) -> Jan 1 to Feb 28/29
-        //          Mar (03) -> Mar 1 to Apr 30
-
-        // Start date: First day of current month
-        startDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
-
-        // End date: Last day of NEXT month (current month + 1)
-        const nextMonth = monthNum + 1;
-        let endYear = yearNum;
-        let endMonthNum = nextMonth;
-
-        // Handle year rollover (Dec -> Jan)
-        if (nextMonth > 12) {
-          endYear = yearNum + 1;
-          endMonthNum = 1;
-        }
-
-        // Calculate last day of the NEXT month
-        let lastDay: number;
-        if (endMonthNum === 2) {
-          // February - check for leap year
-          const isLeapYear = (endYear % 4 === 0 && endYear % 100 !== 0) || (endYear % 400 === 0);
-          lastDay = isLeapYear ? 29 : 28;
-        } else if ([4, 6, 9, 11].includes(endMonthNum)) {
-          // April, June, September, November have 30 days
-          lastDay = 30;
-        } else {
-          // January, March, May, July, August, October, December have 31 days
-          lastDay = 31;
-        }
-
-        endDate = `${endYear}-${String(endMonthNum).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-        console.log(`📅 BI-MONTHLY VAT Period: ${monthParam} (${startDate} to ${endDate})`);
-      }
-
-      // Build query string (NOTE: Prisma schema has no status field, so we fetch all)
-      let query = "";
-      if (startDate) query += `${query ? '&' : ''}startDate=${startDate}`;
-      if (endDate) query += `${query ? '&' : ''}endDate=${endDate}`;
-
-      // Fetch transactions (all transactions are considered complete in Prisma schema)
-      const apiUrl = `/api/transactions${query ? `?${query}` : ''}`;
-      console.log(`🔍 Fetching transactions from: ${apiUrl}`);
-
-      const response = await fetch(apiUrl, { signal });
-
-      // If request was aborted, exit early
-      if (signal?.aborted) {
-        console.log("⚠️ Fetch aborted - period changed");
-        return;
-      }
-
-      const result = await response.json();
-
-      console.log(`📥 API Response:`, {
-        success: result.success,
-        dataLength: result.data?.length,
-        query: query || 'none',
-      });
-
-      if (result.success && Array.isArray(result.data)) {
-        const transactions: Transaction[] = result.data;
-
-        console.log(`📊 Found ${transactions.length} raw transactions from API`);
-
-        // Filter to only transactions with valid amounts
-        const validTransactions = transactions.filter(
-          (t) => t.amount != null && t.amount > 0
-        );
-
-        console.log(`✅ ${validTransactions.length} transactions with valid amounts`);
-
-        if (validTransactions.length < transactions.length) {
-          console.warn(`⚠️ Filtered out ${transactions.length - validTransactions.length} transactions with invalid amounts`);
-        }
-
-        const completedTransactions = validTransactions;
-
-        // Calculate income totals
-        const incomeTransactions = completedTransactions.filter((t) => t.type === "income");
-        const totalIncome = incomeTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-        const incomeVAT = incomeTransactions.reduce((sum, t) => sum + (t.vat_amount || 0), 0);
-
-        console.log("💰 Income:", incomeTransactions.length, "transactions, total:", totalIncome, "VAT:", incomeVAT);
-
-        // Calculate expense totals
-        const expenseTransactions = completedTransactions.filter((t) => t.type === "expense");
-        const totalExpenses = expenseTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
-        // CRITICAL FIX: Use RECOGNIZED VAT (not total VAT from receipts)
-        const expenseVAT = expenseTransactions.reduce((sum, t) => sum + (t.recognized_vat_amount || t.vat_amount || 0), 0);
-
-        console.log("💸 Expenses:", expenseTransactions.length, "transactions, total:", totalExpenses, "Recognized VAT:", expenseVAT);
-
-        // Calculate net profit and VAT to pay
-        const netProfit = totalIncome - totalExpenses;
-        const vatToPay = incomeVAT - expenseVAT;
-
-        console.log("📈 Net Profit:", netProfit, "VAT to Pay:", vatToPay);
-
-        setStats({
-          totalIncome,
-          totalExpenses,
-          netProfit,
-          vatToPay,
-          incomeVAT,
-          expenseVAT,
-        });
-      } else {
-        console.warn("Failed to fetch transactions or no data");
-        // Set to 0 if no transactions
-        setStats({
-          totalIncome: 0,
-          totalExpenses: 0,
-          netProfit: 0,
-          vatToPay: 0,
-          incomeVAT: 0,
-          expenseVAT: 0,
-        });
-      }
-    } catch (error) {
-      // Ignore abort errors (they're intentional when period changes)
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log("⚠️ Fetch cancelled - period changed");
-        return;
-      }
-
-      console.error("Error fetching stats:", error);
-      // Set to 0 on error
-      setStats({
-        totalIncome: 0,
-        totalExpenses: 0,
-        netProfit: 0,
-        vatToPay: 0,
-        incomeVAT: 0,
-        expenseVAT: 0,
-      });
-    } finally {
-      setLoadingStats(false);
-    }
-  }, [searchParams]); // Stable dependency - only searchParams
-
-  // ═══════════════════════════════════════════════════════════════
-  // UNIFIED MOUNT LOGIC: Handle period redirect + stats fetch
-  // RACE CONDITION PROTECTED: Cancels previous fetch when period changes
-  // ═══════════════════════════════════════════════════════════════
+  /** Silent refresh: one GET /api/transactions every 10s when the tab is visible (no loading spinners). */
   useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      setSilentPollTick((t) => t + 1);
+    }, 10_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "1") {
+        setOnboardingPhase("hidden");
+      }
+    } catch {
+      /* ignore */
+    }
+    setOnboardingLSReady(true);
+  }, []);
+
+  /** Profile / WhatsApp rarely changes — one GET /api/settings on mount (not joined with every transactions fetch). */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/settings");
+        const json = await res.json();
+        if (cancelled || !json?.success || !json.data) return;
+        const d = json.data;
+        setSettingsSnapshot({
+          whatsapp_phone: (d.whatsapp_phone ?? d.whatsappPhone ?? null) as string | null,
+          whatsapp_phone_2: (d.whatsapp_phone_2 ?? d.whatsappPhone2 ?? null) as string | null,
+          business_name: (d.business_name ?? d.businessName ?? null) as string | null,
+        });
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const whatsappConnected = useMemo(() => {
+    const a = settingsSnapshot?.whatsapp_phone?.trim();
+    const b = settingsSnapshot?.whatsapp_phone_2?.trim();
+    return !!(a || b);
+  }, [settingsSnapshot]);
+
+  const businessVerified = useMemo(() => {
+    const name = (settingsSnapshot?.business_name ?? user?.business_name ?? "").trim();
+    const dealer = (user?.dealer_number ?? "").trim();
+    return name.length > 0 && dealer.length > 0;
+  }, [settingsSnapshot, user]);
+
+  const firstReceiptDone = hasAnyTransactions === true;
+  const allOnboardingTasksComplete =
+    whatsappConnected && firstReceiptDone && businessVerified;
+
+  useEffect(() => {
+    if (!onboardingLSReady) return;
+    if (onboardingPhase !== "tasks") return;
+    if (!allOnboardingTasksComplete) return;
+    setOnboardingPhase("success");
+  }, [onboardingLSReady, onboardingPhase, allOnboardingTasksComplete]);
+
+  useEffect(() => {
+    if (onboardingPhase !== "success") return;
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(ONBOARDING_DISMISSED_KEY, "1");
+      } catch {
+        /* ignore */
+      }
+      setOnboardingPhase("hidden");
+    }, 5000);
+    return () => window.clearTimeout(t);
+  }, [onboardingPhase]);
+
+  useEffect(() => {
+    if (!toastMessage) return;
+    const t = window.setTimeout(() => setToastMessage(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [toastMessage]);
+
+  const onAllDraftsResolved = useCallback(() => {
+    setToastMessage("All caught up! ✅");
+  }, []);
+
+  const fetchStats = useCallback(
+    async (signal?: AbortSignal, options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+      try {
+        if (!silent) {
+          setLoadingStats(true);
+          setStats({
+            totalIncome: 0,
+            totalExpenses: 0,
+            netProfit: 0,
+            vatToPay: 0,
+            incomeVAT: 0,
+            expenseVAT: 0,
+          });
+        }
+
+        const monthParam = searchParams?.get("month");
+        const periodBounds = getVatPeriodDateBoundsFromMonthParam(monthParam);
+        if (periodBounds && process.env.NODE_ENV === "development") {
+          console.log(
+            `📅 BI-MONTHLY VAT Period: ${monthParam} (${periodBounds.startDate} to ${periodBounds.endDate})`
+          );
+        }
+
+        const txParams = new URLSearchParams();
+        if (periodBounds) {
+          txParams.set("startDate", periodBounds.startDate);
+          txParams.set("endDate", periodBounds.endDate);
+        }
+        const apiUrl =
+          txParams.toString().length > 0
+            ? `/api/transactions?${txParams.toString()}`
+            : "/api/transactions";
+        if (!silent && process.env.NODE_ENV === "development") {
+          console.log(`🔍 Fetching transactions from: ${apiUrl}`);
+        }
+
+        const response = await fetch(apiUrl, { signal });
+
+        if (signal?.aborted) {
+          console.log("⚠️ Fetch aborted - period changed");
+          return;
+        }
+
+        const result = await response.json();
+
+        if (!silent && process.env.NODE_ENV === "development") {
+          console.log(`📥 API Response:`, {
+            success: result.success,
+            dataLength: result.data?.length,
+            period: monthParam ?? "all",
+          });
+        }
+
+        const meta = (result as {
+          meta?: {
+            summary?: { count: number; latestCreatedAt: string | null };
+            hasAnyTransaction?: boolean;
+          };
+        }).meta;
+
+        if (meta?.summary) {
+          dataFingerprintRef.current = {
+            count: meta.summary.count,
+            latestCreatedAt: meta.summary.latestCreatedAt,
+          };
+        }
+
+        if (result.success && Array.isArray(result.data)) {
+          const transactions: Transaction[] = result.data;
+
+          if (typeof meta?.hasAnyTransaction === "boolean") {
+            setHasAnyTransactions(meta.hasAnyTransaction);
+          } else {
+            setHasAnyTransactions(transactions.length > 0);
+          }
+
+          setTransactionsCache(transactions);
+
+          if (!silent && process.env.NODE_ENV === "development") {
+            console.log(`📊 Found ${transactions.length} raw transactions from API`);
+          }
+
+          // COMPLETED rows are already scoped by the server for the VAT period; DRAFTs are included for inbox.
+          const validTransactions = transactions.filter(
+            (t) =>
+              t.status === "COMPLETED" && t.amount != null && t.amount > 0
+          );
+
+          if (!silent && process.env.NODE_ENV === "development") {
+            console.log(
+              `✅ ${validTransactions.length} transactions with valid amounts (in selected period)`
+            );
+          }
+
+          const completedTransactions = validTransactions;
+
+          const incomeTransactions = completedTransactions.filter((t) => t.type === "income");
+          const totalIncome = incomeTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+          const incomeVAT = incomeTransactions.reduce((sum, t) => sum + (t.vat_amount || 0), 0);
+
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              "💰 Income:",
+              incomeTransactions.length,
+              "transactions, total:",
+              totalIncome,
+              "VAT:",
+              incomeVAT
+            );
+          }
+
+          const expenseTransactions = completedTransactions.filter((t) => t.type === "expense");
+          const totalExpenses = expenseTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+          const expenseVAT = expenseTransactions.reduce(
+            (sum, t) => sum + (t.recognized_vat_amount ?? t.vat_amount ?? 0),
+            0
+          );
+
+          if (process.env.NODE_ENV === "development") {
+            console.log(
+              "💸 Expenses:",
+              expenseTransactions.length,
+              "transactions, total:",
+              totalExpenses,
+              "Recognized VAT:",
+              expenseVAT
+            );
+          }
+
+          const netProfit = totalIncome - totalExpenses;
+          const vatToPay = incomeVAT - expenseVAT;
+
+          if (process.env.NODE_ENV === "development") {
+            console.log("📈 Net Profit:", netProfit, "VAT to Pay:", vatToPay);
+          }
+
+          setStats({
+            totalIncome,
+            totalExpenses,
+            netProfit,
+            vatToPay,
+            incomeVAT,
+            expenseVAT,
+          });
+        } else {
+          console.warn("Failed to fetch transactions or no data");
+          if (!silent) {
+            setTransactionsCache([]);
+            setHasAnyTransactions(false);
+            setStats({
+              totalIncome: 0,
+              totalExpenses: 0,
+              netProfit: 0,
+              vatToPay: 0,
+              incomeVAT: 0,
+              expenseVAT: 0,
+            });
+          }
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("⚠️ Fetch cancelled - period changed");
+          return;
+        }
+
+        console.error("Error fetching stats:", error);
+        if (!silent) {
+          setTransactionsCache([]);
+          setHasAnyTransactions(true);
+          setStats({
+            totalIncome: 0,
+            totalExpenses: 0,
+            netProfit: 0,
+            vatToPay: 0,
+            incomeVAT: 0,
+            expenseVAT: 0,
+          });
+        }
+      } finally {
+        if (!silent) {
+          setLoadingStats(false);
+        }
+      }
+    },
+    [searchParams]
+  );
+
+  // Single effect: month URL change OR manual refresh — one /api/transactions fetch (not both).
+  useEffect(() => {
+    const abortController = new AbortController();
     const monthParam = searchParams?.get("month");
 
-    // Create AbortController for this fetch
-    const abortController = new AbortController();
-
-    // ═══════════════════════════════════════════════════════════════
-    // ANTI-GHOSTING FIX: Clear old stats immediately when month changes
-    // ═══════════════════════════════════════════════════════════════
-    setLoadingStats(true);
-
-    // Check if we need to redirect to correct period
     let needsRedirect = false;
     let targetMonth = "";
 
     if (!monthParam) {
-      // No month in URL - calculate current VAT period start month
       const now = new Date();
       const year = now.getFullYear();
-      const currentMonth = now.getMonth() + 1; // 1-12
-
-      // If current month is even (Feb, Apr, Jun, etc.), subtract 1 to get period start
-      // Jan-Feb period starts in Jan (1), Mar-Apr starts in Mar (3), etc.
+      const currentMonth = now.getMonth() + 1;
       const periodStartMonth = currentMonth % 2 === 0 ? currentMonth - 1 : currentMonth;
-      const periodStartMonthStr = String(periodStartMonth).padStart(2, '0');
+      const periodStartMonthStr = String(periodStartMonth).padStart(2, "0");
       targetMonth = `${year}-${periodStartMonthStr}`;
-
-      console.log(`📅 No month parameter found, redirecting to current VAT period: ${targetMonth} (bi-monthly period for month ${currentMonth})`);
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `📅 No month parameter found, redirecting to current VAT period: ${targetMonth} (bi-monthly period for month ${currentMonth})`
+        );
+      }
       needsRedirect = true;
     } else {
-      // Month exists in URL - check if it's even (e.g., 2026-02)
       const [year, month] = monthParam.split("-");
-      const monthNum = parseInt(month);
-
-      // If even month, redirect to the odd month before it
+      const monthNum = parseInt(month, 10);
       if (monthNum % 2 === 0) {
         const oddMonth = monthNum - 1;
-        const oddMonthStr = String(oddMonth).padStart(2, '0');
+        const oddMonthStr = String(oddMonth).padStart(2, "0");
         targetMonth = `${year}-${oddMonthStr}`;
-
-        console.log(`📅 Even month detected (${monthParam}), redirecting to period start: ${targetMonth}`);
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            `📅 Even month detected (${monthParam}), redirecting to period start: ${targetMonth}`
+          );
+        }
         needsRedirect = true;
       }
     }
 
     if (needsRedirect) {
-      // Redirect to correct period (this will trigger this effect again with correct month)
       router.replace(`/?month=${targetMonth}`);
-    } else {
-      // Period is correct - fetch stats immediately with abort signal
-      fetchStats(abortController.signal);
+      return () => abortController.abort();
     }
 
-    // Cleanup: abort fetch if effect runs again (period changed)
-    return () => {
-      abortController.abort();
-    };
+    fetchStats(abortController.signal, { silent: false });
+
+    return () => abortController.abort();
   }, [searchParams, router, fetchStats, refreshTrigger]);
+
+  /** Background poll: lightweight summary first; full fetch only if count or latest createdAt changed. */
+  useEffect(() => {
+    if (silentPollTick === 0) return;
+    const ac = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/transactions?summary=1", { signal: ac.signal });
+        const result = await res.json();
+        if (!result.success || !result.summary) return;
+        const { count, latestCreatedAt } = result.summary as {
+          count: number;
+          latestCreatedAt: string | null;
+        };
+        const prev = dataFingerprintRef.current;
+        if (
+          prev !== null &&
+          prev.count === count &&
+          prev.latestCreatedAt === latestCreatedAt
+        ) {
+          return;
+        }
+        await fetchStats(ac.signal, { silent: true });
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+        console.error("Silent poll (summary) failed:", error);
+      }
+    })();
+    return () => ac.abort();
+  }, [silentPollTick, fetchStats]);
 
   const handleReviewDraft = (draft: Transaction) => {
     setSelectedDraft(draft);
@@ -369,6 +523,17 @@ export default function HomeContent() {
                   <span className="hidden md:inline">הגדרות</span>
                 </button>
 
+                {user?.is_admin && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1 md:gap-2 px-2 py-2 md:px-4 bg-indigo-500 hover:bg-indigo-400 rounded-lg transition-colors text-sm font-medium"
+                    title="ניהול"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span className="hidden md:inline">ניהול</span>
+                  </Link>
+                )}
+
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-1 md:gap-2 px-2 py-2 md:px-4 bg-blue-500 hover:bg-blue-400 rounded-lg transition-colors text-sm font-medium"
@@ -396,19 +561,102 @@ export default function HomeContent() {
           </div>
         </div>
 
+        {/* Getting Started — hidden permanently after success + localStorage */}
+        {onboardingLSReady && (onboardingPhase === "tasks" || onboardingPhase === "success") && (
+          <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
+            <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm md:p-6">
+              {onboardingPhase === "success" ? (
+                <div className="py-2 text-center md:text-start">
+                  <p className="text-base font-semibold text-gray-900 md:text-lg">
+                    You are all set! App is ready for work.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-lg font-bold text-gray-900 md:text-xl">מתחילים</h2>
+                  <p className="mt-1 text-sm text-gray-600">
+                    השלם את שלושת השלבים כדי להפיק את המירב מהמערכת.
+                  </p>
+                  <ul className="mt-4 space-y-3">
+                    <li className="flex gap-3 rounded-lg bg-white/80 p-3 ring-1 ring-gray-100">
+                      {whatsappConnected ? (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
+                      ) : (
+                        <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" aria-hidden />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900">חבר את WhatsApp</p>
+                        <p className="text-sm text-gray-600">
+                          בהגדרות — הוסף מספר (או מספר שני) לשליחת קבלות.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => router.push("/settings")}
+                          className="mt-2 text-sm font-medium text-blue-700 hover:underline"
+                        >
+                          פתח הגדרות
+                        </button>
+                      </div>
+                    </li>
+                    <li className="flex gap-3 rounded-lg bg-white/80 p-3 ring-1 ring-gray-100">
+                      {firstReceiptDone ? (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
+                      ) : (
+                        <Circle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900">שלח את הקבלה הראשונה</p>
+                        <p className="text-sm text-gray-600">
+                          העלה קובץ או גרור לאזור ההעלאה למטה.
+                        </p>
+                        <a
+                          href="#bulk-upload"
+                          className="mt-2 inline-block text-sm font-medium text-blue-700 hover:underline"
+                        >
+                          קפוץ להעלאה
+                        </a>
+                      </div>
+                    </li>
+                    <li className="flex gap-3 rounded-lg bg-white/80 p-3 ring-1 ring-gray-100">
+                      {businessVerified ? (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
+                      ) : (
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-purple-600 opacity-60" aria-hidden />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900">אמת פרטי עסק</p>
+                        <p className="text-sm text-gray-600">
+                          שם עסק, סוג עוסק ומספר עוסק מול רשויות המס.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => router.push("/settings")}
+                          className="mt-2 text-sm font-medium text-blue-700 hover:underline"
+                        >
+                          עדכן בפרופיל
+                        </button>
+                      </div>
+                    </li>
+                  </ul>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Dashboard Stats Cards */}
         <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             {/* Total Income */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-green-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">סך הכנסות</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {loadingStats ? "..." : `₪${stats.totalIncome.toFixed(2)}`}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-green-500">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">סך הכנסות</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 tabular-nums">
+                    {loadingStats ? "..." : `₪${formatMoney(stats.totalIncome)}`}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    מע״מ: ₪{stats.incomeVAT.toFixed(2)}
+                  <p className="text-xs text-gray-500 mt-1 tabular-nums">
+                    מע״מ: ₪{formatMoney(stats.incomeVAT)}
                   </p>
                 </div>
                 <div className="bg-green-100 p-3 rounded-full">
@@ -418,15 +666,15 @@ export default function HomeContent() {
             </div>
 
             {/* Total Expenses */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-red-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">סך הוצאות</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {loadingStats ? "..." : `₪${stats.totalExpenses.toFixed(2)}`}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-red-500">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">סך הוצאות</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 tabular-nums">
+                    {loadingStats ? "..." : `₪${formatMoney(stats.totalExpenses)}`}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    מע״מ: ₪{stats.expenseVAT.toFixed(2)}
+                  <p className="text-xs text-gray-500 mt-1 tabular-nums">
+                    מע״מ: ₪{formatMoney(stats.expenseVAT)}
                   </p>
                 </div>
                 <div className="bg-red-100 p-3 rounded-full">
@@ -436,12 +684,12 @@ export default function HomeContent() {
             </div>
 
             {/* Net Profit */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-blue-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">רווח נקי</p>
-                  <p className={`text-2xl font-bold mt-1 ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {loadingStats ? "..." : `₪${stats.netProfit.toFixed(2)}`}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-blue-500">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">רווח נקי</p>
+                  <p className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {loadingStats ? "..." : `₪${formatMoney(stats.netProfit)}`}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     הכנסות - הוצאות
@@ -454,12 +702,12 @@ export default function HomeContent() {
             </div>
 
             {/* VAT to Pay */}
-            <div className="bg-white rounded-lg shadow-md p-6 border-t-4 border-purple-500">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 font-medium">מע״מ לתשלום</p>
-                  <p className={`text-2xl font-bold mt-1 ${stats.vatToPay >= 0 ? 'text-purple-600' : 'text-green-600'}`}>
-                    {loadingStats ? "..." : `₪${stats.vatToPay.toFixed(2)}`}
+            <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 border-t-4 border-purple-500">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-gray-600 font-medium">מע״מ לתשלום</p>
+                  <p className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${stats.vatToPay >= 0 ? 'text-purple-600' : 'text-green-600'}`}>
+                    {loadingStats ? "..." : `₪${formatMoney(stats.vatToPay)}`}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     {stats.vatToPay >= 0 ? 'חובה' : 'זכאות להחזר'}
@@ -484,11 +732,23 @@ export default function HomeContent() {
 
         {/* Drafts Inbox - Pending Receipts */}
         <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
-          <DraftsInbox onReviewDraft={handleReviewDraft} onRefreshNeeded={triggerRefresh} refreshTrigger={refreshTrigger} />
+          <DraftsInbox
+            onReviewDraft={handleReviewDraft}
+            onRefreshNeeded={triggerRefresh}
+            sharedTransactions={
+              transactionsCache as unknown as ComponentProps<typeof DraftsInbox>["sharedTransactions"]
+            }
+            onAllDraftsResolved={onAllDraftsResolved}
+          />
         </div>
 
         {/* Transaction Manager - Only COMPLETED transactions */}
-        <TransactionManager triggerRefresh={triggerRefresh} />
+        <TransactionManager
+          triggerRefresh={triggerRefresh}
+          sharedTransactions={
+            transactionsCache as unknown as ComponentProps<typeof TransactionManager>["sharedTransactions"]
+          }
+        />
       </div>
 
       {/* Transaction Editor Modal */}
@@ -503,6 +763,20 @@ export default function HomeContent() {
 
       {/* AI Chat Assistant */}
       <AIChat />
+
+      <ReportIssueFAB />
+
+      {toastMessage && (
+        <div
+          className="fixed top-4 left-1/2 z-[100] -translate-x-1/2 px-4"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="rounded-full bg-gray-900 px-5 py-3 text-sm font-medium text-white shadow-lg">
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </>
   );
 }

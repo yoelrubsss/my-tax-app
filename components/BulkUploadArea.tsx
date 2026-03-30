@@ -276,7 +276,7 @@ export default function BulkUploadArea({
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div className="max-w-6xl mx-auto mb-6">
+    <div id="bulk-upload" className="max-w-6xl mx-auto mb-6 scroll-mt-24">
       {/* Drop Zone */}
       <div
         onDrop={handleDrop}

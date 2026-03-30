@@ -5,30 +5,10 @@ import { GoogleAIFileManager } from "@google/generative-ai/server";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-
-const CATEGORY_IDS = [
-  "office-equipment",
-  "software",
-  "software-foreign",
-  "software-local",
-  "professional-services",
-  "vehicle-fuel",
-  "vehicle-maintenance",
-  "vehicle-insurance",
-  "communication",
-  "meals-entertainment",
-  "travel",
-  "home-office",
-  "rent",
-  "utilities",
-  "education",
-  "marketing",
-  "legal-accounting",
-  "insurance",
-  "health-safety",
-  "gifts",
-  "other",
-];
+import {
+  getReceiptScanCategoryInstructions,
+  normalizeReceiptCategoryId,
+} from "@/lib/tax-knowledge";
 
 const SCAN_TIMEOUT_MS = 45_000; // PDFs can take longer than images
 
@@ -76,7 +56,8 @@ function classifyGeminiError(err: unknown): string {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAuth();
+    const userId = await requireAuth();
+    const userIdStr = String(userId);
 
     const { filePath } = await request.json();
 
@@ -84,6 +65,70 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "No file path provided" },
         { status: 400 }
+      );
+    }
+
+    // SECURITY: Prevent cross-user receipt scanning by validating ownership
+    // Supabase public URLs embed the storage path, which we store as `${userId}/...`.
+    const filePathNoQuery = filePath.split("?")[0];
+    const receiptsMarker = "/receipts/";
+    const markerIndex = filePathNoQuery.lastIndexOf(receiptsMarker);
+
+    if (markerIndex === -1) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: invalid receipt path" },
+        { status: 403 }
+      );
+    }
+
+    const storagePath = filePathNoQuery.substring(
+      markerIndex + receiptsMarker.length
+    );
+    let decodedStoragePath: string;
+    try {
+      decodedStoragePath = decodeURIComponent(storagePath);
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: invalid receipt path" },
+        { status: 403 }
+      );
+    }
+
+    // Basic sanity checks
+    if (
+      !decodedStoragePath ||
+      decodedStoragePath.startsWith("/") ||
+      decodedStoragePath.includes("..") ||
+      !decodedStoragePath.startsWith(`${userIdStr}/`)
+    ) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: receipt does not belong to user" },
+        { status: 403 }
+      );
+    }
+
+    // Also verify Supabase origin (defense-in-depth)
+    try {
+      const supabaseUrl = process.env.SUPABASE_URL;
+      if (!supabaseUrl) {
+        return NextResponse.json(
+          { success: false, error: "Server misconfiguration" },
+          { status: 500 }
+        );
+      }
+
+      const expectedOrigin = new URL(supabaseUrl).origin;
+      const incomingUrl = new URL(filePathNoQuery);
+      if (incomingUrl.origin !== expectedOrigin) {
+        return NextResponse.json(
+          { success: false, error: "Forbidden: invalid storage origin" },
+          { status: 403 }
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: invalid file URL" },
+        { status: 403 }
       );
     }
 
@@ -142,6 +187,8 @@ CRITICAL ACCURACY RULES — READ BEFORE ANALYZING:
 - Do not infer the merchant name from logos, colors, or context — only from clearly legible text.
 - For amounts: look for keywords like "סה"כ לתשלום", "סה"כ", "Total", or "מע"מ". Confidently extract the numeric values associated with them. Extract the numeric amount but also DETECT the currency symbol. Do your best to find the final total and VAT — only return null for amounts if no numeric value can be found at all.
 
+${getReceiptScanCategoryInstructions()}
+
 Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
 
 {
@@ -150,14 +197,13 @@ Return ONLY a valid JSON object — no markdown, no explanation, just raw JSON:
   "totalAmount": total including VAT as number (or null if no numeric value found),
   "vatAmount": VAT amount shown on receipt as number, or calculate as totalAmount * 0.18 / 1.18 (or null if not found),
   "detectedCurrency": "ILS" | "USD" | "EUR" | "GBP" | null (detect from symbols like ₪, $, €, £ or text like "USD", "EUR", "ILS", "NIS"),
-  "suggestedCategory": one of exactly: ${CATEGORY_IDS.join(", ")} (or null),
+  "suggestedCategory": "exact id string from ALLOWED CATEGORY IDS above (use other if unsure)",
   "confidence": "high" | "medium" | "low"
 }
 
 Additional rules:
 - totalAmount includes VAT (18% Israeli VAT rate for ILS receipts)
 - If the receipt shows net + VAT separately, sum them for totalAmount
-- For category, pick the best match from the list or null if unsure
 - ALWAYS detect the currency: look for ₪ or "ILS" or "NIS" = "ILS", $ or "USD" = "USD", € or "EUR" = "EUR", £ or "GBP" = "GBP"
 - If no clear currency symbol, return null for detectedCurrency`;
 
@@ -322,11 +368,7 @@ Additional rules:
           ? Math.round(parsed.vatAmount * 100) / 100
           : null,
       detectedCurrency,
-      category:
-        typeof parsed.suggestedCategory === "string" &&
-        CATEGORY_IDS.includes(parsed.suggestedCategory)
-          ? parsed.suggestedCategory
-          : null,
+      category: normalizeReceiptCategoryId(parsed.suggestedCategory),
       confidence: ["high", "medium", "low"].includes(
         parsed.confidence as string
       )

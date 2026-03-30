@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Save, ExternalLink, FileText, Tag, Calendar, DollarSign } from "lucide-react";
 import { TAX_CATEGORIES, getCategoryById } from "@/lib/tax-knowledge";
+import { formatMoney } from "@/lib/utils";
 
 interface Transaction {
   id: string | number; // Support both CUID and legacy numeric IDs
@@ -257,14 +258,14 @@ export default function EditTransactionModal({
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">סכום נטו:</span>
-                  <span className="font-bold text-gray-900 mr-2">
-                    ₪{netAmount.toFixed(2)}
+                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                    ₪{formatMoney(netAmount)}
                   </span>
                 </div>
                 <div>
                   <span className="text-gray-600">מע״מ (18%):</span>
-                  <span className="font-bold text-gray-900 mr-2">
-                    ₪{vatAmount.toFixed(2)}
+                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                    ₪{formatMoney(vatAmount)}
                   </span>
                 </div>
               </div>
