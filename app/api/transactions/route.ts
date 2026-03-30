@@ -18,6 +18,17 @@ import { requireAuth } from "@/lib/auth-server";
 import { getCategoryById } from "@/lib/tax-knowledge";
 import { formatIsraeliPhoneForDisplay } from "@/lib/phone-utils";
 
+/** Merge draft + completed lists; sort by transaction date desc, then createdAt desc. */
+function mergeTransactionsByDateDesc<
+  T extends { date: Date; createdAt: Date; id: string },
+>(drafts: T[], completed: T[]): T[] {
+  return [...drafts, ...completed].sort((a, b) => {
+    const d = b.date.getTime() - a.date.getTime();
+    if (d !== 0) return d;
+    return b.createdAt.getTime() - a.createdAt.getTime();
+  });
+}
+
 // GET: Fetch all transactions for the authenticated user
 export async function GET(request: NextRequest) {
   try {
@@ -52,50 +63,18 @@ export async function GET(request: NextRequest) {
     // Get filters from query params
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const statusParam = searchParams.get("status");
+    const rawStatus = searchParams.get("status");
+    /** Only DRAFT | COMPLETED count; ignore junk like ?status=all so dashboard still uses draft+period split. */
+    const statusFilter =
+      rawStatus && ["DRAFT", "COMPLETED"].includes(rawStatus.trim().toUpperCase())
+        ? (rawStatus.trim().toUpperCase() as "DRAFT" | "COMPLETED")
+        : null;
     const includeProfile = searchParams.get("includeProfile") === "1";
 
     if (process.env.NODE_ENV === "development") {
       console.log(
-        `   Filters: startDate=${startDate}, endDate=${endDate}, includeProfile=${includeProfile}`
+        `   Filters: startDate=${startDate}, endDate=${endDate}, statusFilter=${statusFilter}, includeProfile=${includeProfile}`
       );
-    }
-
-    // Build Prisma where clause
-    const where: Prisma.TransactionWhereInput = {
-      userId: userIdStr,
-    };
-
-    // Optional status filtering (export / VAT report / etc.)
-    if (statusParam) {
-      const normalizedStatus = statusParam.toString().toUpperCase();
-      if (normalizedStatus === "DRAFT" || normalizedStatus === "COMPLETED") {
-        where.status = normalizedStatus;
-      }
-    }
-
-    // Date range: when both bounds set, return COMPLETED in range OR any DRAFT (inbox always sees pending drafts).
-    if (startDate && endDate && !statusParam) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      where.OR = [
-        { status: "DRAFT" },
-        {
-          status: "COMPLETED",
-          date: { gte: start, lte: end },
-        },
-      ];
-    } else if (startDate || endDate) {
-      where.date = {};
-      if (startDate) {
-        where.date.gte = new Date(startDate);
-      }
-      if (endDate) {
-        const endDateTime = new Date(endDate);
-        endDateTime.setHours(23, 59, 59, 999);
-        where.date.lte = endDateTime;
-      }
     }
 
     // Global fingerprint + hasAny (parallel with list; cheap with idx_user_created_at)
@@ -105,28 +84,96 @@ export async function GET(request: NextRequest) {
       _max: { createdAt: true },
     });
 
-    // Fetch transactions (+ optional profile)
-    const [transactions, globalAgg, profileUser] = await Promise.all([
-      prisma.transaction.findMany({
-        where,
-        orderBy: { date: "desc" },
-      }),
-      globalAggPromise,
-      includeProfile
-        ? prisma.user.findUnique({
-            where: { id: userIdStr },
-            select: {
-              whatsappPhone: true,
-              whatsappPhone2: true,
-              profile: true,
-            },
-          })
-        : Promise.resolve(null),
-    ]);
+    const profilePromise = includeProfile
+      ? prisma.user.findUnique({
+          where: { id: userIdStr },
+          select: {
+            whatsappPhone: true,
+            whatsappPhone2: true,
+            profile: true,
+          },
+        })
+      : Promise.resolve(null);
+
+    /**
+     * Dashboard (month selected): fetch ALL drafts with no date filter + COMPLETED only in VAT window.
+     * Two queries avoid Prisma/DB edge cases where OR + date could omit drafts on some deployments.
+     */
+    const useDraftPlusPeriodCompleted = Boolean(
+      startDate && endDate && !statusFilter
+    );
+
+    let transactions: Awaited<
+      ReturnType<typeof prisma.transaction.findMany>
+    >;
+    let globalAgg: Awaited<typeof globalAggPromise>;
+    let profileUser: Awaited<typeof profilePromise>;
+
+    if (useDraftPlusPeriodCompleted) {
+      const start = new Date(startDate!);
+      const end = new Date(endDate!);
+      end.setHours(23, 59, 59, 999);
+
+      const [draftRows, completedRows, agg, prof] = await Promise.all([
+        prisma.transaction.findMany({
+          where: {
+            userId: userIdStr,
+            status: { equals: "DRAFT", mode: "insensitive" },
+          },
+          orderBy: [{ createdAt: "desc" }],
+        }),
+        prisma.transaction.findMany({
+          where: {
+            userId: userIdStr,
+            status: { equals: "COMPLETED", mode: "insensitive" },
+            date: { gte: start, lte: end },
+          },
+          orderBy: { date: "desc" },
+        }),
+        globalAggPromise,
+        profilePromise,
+      ]);
+
+      transactions = mergeTransactionsByDateDesc(draftRows, completedRows);
+      globalAgg = agg;
+      profileUser = prof;
+    } else {
+      const where: Prisma.TransactionWhereInput = {
+        userId: userIdStr,
+      };
+
+      if (statusFilter) {
+        where.status = { equals: statusFilter, mode: "insensitive" };
+      }
+
+      if (startDate || endDate) {
+        where.date = {};
+        if (startDate) {
+          where.date.gte = new Date(startDate);
+        }
+        if (endDate) {
+          const endDateTime = new Date(endDate);
+          endDateTime.setHours(23, 59, 59, 999);
+          where.date.lte = endDateTime;
+        }
+      }
+
+      const [txs, agg, prof] = await Promise.all([
+        prisma.transaction.findMany({
+          where,
+          orderBy: { date: "desc" },
+        }),
+        globalAggPromise,
+        profilePromise,
+      ]);
+      transactions = txs;
+      globalAgg = agg;
+      profileUser = prof;
+    }
 
     // Map Prisma fields to frontend-expected format (snake_case for backward compatibility)
-    const mappedTransactions = transactions.map(tx => {
-      const isDraft = tx.status === 'DRAFT';
+    const mappedTransactions = transactions.map((tx) => {
+      const isDraft = String(tx.status).toUpperCase() === "DRAFT";
       const isVatDeductible = tx.type === "EXPENSE" ? tx.isRecognized : true;
 
       return {

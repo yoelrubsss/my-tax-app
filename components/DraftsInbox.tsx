@@ -41,7 +41,9 @@ export default function DraftsInbox({
       return;
     }
     setLoading(false);
-    const draftTransactions = sharedTransactions.filter((t: Transaction) => t.status === "DRAFT");
+    const draftTransactions = sharedTransactions.filter(
+      (t: Transaction) => String(t.status).toUpperCase() === "DRAFT"
+    );
     setDrafts(draftTransactions);
   }, [sharedTransactions]);
 
@@ -122,8 +124,8 @@ export default function DraftsInbox({
   // Get missing info summary
   const getMissingInfo = (draft: Transaction) => {
     const missing: string[] = [];
-    if (!draft.description) missing.push("ספק");
-    if (!draft.amount) missing.push("סכום");
+    if (!draft.description?.trim()) missing.push("ספק");
+    if (draft.amount == null || Number.isNaN(Number(draft.amount))) missing.push("סכום");
     if (!draft.type) missing.push("סוג");
     if (!draft.category) missing.push("קטגוריה");
     return missing;
@@ -233,7 +235,7 @@ export default function DraftsInbox({
                       <span className="font-medium">ספק:</span> {draft.description}
                     </p>
                   )}
-                  {draft.amount && (
+                  {typeof draft.amount === "number" && !Number.isNaN(draft.amount) && (
                     <p className="text-sm text-gray-700 mb-2">
                       <span className="font-medium">סכום:</span> ₪{draft.amount.toFixed(2)}
                     </p>

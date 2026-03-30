@@ -220,7 +220,10 @@ export default function HomeContent() {
           console.log(`🔍 Fetching transactions from: ${apiUrl}`);
         }
 
-        const response = await fetch(apiUrl, { signal });
+        const response = await fetch(apiUrl, {
+          signal,
+          cache: "no-store",
+        });
 
         if (signal?.aborted) {
           console.log("⚠️ Fetch aborted - period changed");
@@ -269,7 +272,9 @@ export default function HomeContent() {
           // COMPLETED rows are already scoped by the server for the VAT period; DRAFTs are included for inbox.
           const validTransactions = transactions.filter(
             (t) =>
-              t.status === "COMPLETED" && t.amount != null && t.amount > 0
+              String(t.status).toUpperCase() === "COMPLETED" &&
+              t.amount != null &&
+              t.amount > 0
           );
 
           if (!silent && process.env.NODE_ENV === "development") {
@@ -424,7 +429,10 @@ export default function HomeContent() {
     const ac = new AbortController();
     (async () => {
       try {
-        const res = await fetch("/api/transactions?summary=1", { signal: ac.signal });
+        const res = await fetch("/api/transactions?summary=1", {
+          signal: ac.signal,
+          cache: "no-store",
+        });
         const result = await res.json();
         if (!result.success || !result.summary) return;
         const { count, latestCreatedAt } = result.summary as {
