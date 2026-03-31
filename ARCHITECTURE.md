@@ -1,7 +1,78 @@
 # 🏗️ My Tax App - Architecture Documentation
 
-**Last Updated:** 2026-03-31
+**Last Updated:** 2026-03-31  
 **Purpose:** Complete system architecture including WhatsApp integration, AI receipt processing, and production deployment setup.
+
+---
+
+## 0. Canonical snapshot — handoff for AI (read first in a new session)
+
+> This section is the **source of truth** for how the app behaves **today** in the repo. It is written so a new session can rely on it without guessing from stale comments elsewhere.
+
+### A. VAT statutory rate (18% — tax year 2026)
+
+| Layer | Where | What |
+|--------|--------|------|
+| **Database / API** | `Transaction.vatRate`, `app/api/transactions/route.ts`, `app/api/webhook/whatsapp/route.ts` | Default **`vatRate = 0.18`**. Gross → VAT: `amount * 0.18 / 1.18` (same pattern across routes). |
+| **UI calculators** | `components/TransactionManager.tsx`, `TransactionEditor.tsx`, `EditTransactionModal.tsx` | Display and inline math use **18%** (e.g. `total * 0.18 / 1.18`). |
+| **Receipt / Gemini prompts** | `lib/receipt-processor.ts`, `app/api/scan-receipt/route.ts` | Prompt text tells the model **18%** Israeli VAT for ILS. |
+| **Export** | `app/api/export/route.ts` | Column labels reference **18%** where applicable. |
+| **Chat AI (advisory only)** | `lib/ai-knowledge.ts` | Exports **`VAT_RATE = 0.18`**. The string **`AI_KNOWLEDGE_BASE`** embeds `${VAT_RATE}`, states **18% for 2026**, and instructs the model **not** to use **17%** for current-year calculations unless the user asks about another year. Includes gross→VAT formulas **18/118** and **100/118**. |
+| **Chat route** | `app/api/chat/route.ts` | **Does not** inject an extra VAT number. `system` = `AI_KNOWLEDGE_BASE` + `formattedContext` only—no duplicate rate that could contradict §A. |
+
+**Single consolidated chat rules file:** **`lib/ai-knowledge.ts`** only. There is **no** `lib/tax-regulations.ts` (removed; do not reintroduce without updating imports and this doc).
+
+**Separate deterministic categories:** **`lib/tax-knowledge.ts`** holds per-category `vatPercentage`, labels, and receipt logic for **transactions and OCR**. It is **not** duplicated inside `AI_KNOWLEDGE_BASE` (different purpose: code-enforced vs. LLM advisory).
+
+### B. AI chat pipeline (exact stack)
+
+1. **Packages:** `ai` (Vercel AI SDK), `@ai-sdk/google`, `@ai-sdk/react`, `next-themes`, `framer-motion`.
+2. **Server:** `app/api/chat/route.ts` — `requireAuth()` → load user context (Prisma: profile, last 20 transactions, last 10 messages) → `formatUserContext()` → `streamText({ model: google('gemini-2.5-flash'), system, messages: await convertToModelMessages(messages), temperature: 0.2, onFinish: save assistant })` → **`result.toUIMessageStreamResponse()`** (UI message stream/SSE for the client).
+3. **Client:** `components/AIChat.tsx` — **`useChat`** from `@ai-sdk/react` with **`DefaultChatTransport`** (`api: '/api/chat'`, **`credentials: 'include'`** for cookie session). FAQ matches use **`FAQ_QUICK_ANSWERS`** and **`setMessages`** without calling the API.
+4. **Display hygiene:** Assistant message text is passed through **`stripBoldAsterisks`** (`content.replaceAll('**', '')`) so stray Markdown bold does not render as asterisks.
+5. **UX:** Structured rows (not speech bubbles), shimmer + “חושב…” while `status === 'submitted'`, floating input bar, stop button while streaming; **`animate-chat-shimmer`** in `app/globals.css`.
+
+### C. Theme (dark mode)
+
+- **`tailwind.config.ts`:** `darkMode: 'class'`.
+- **`app/globals.css`:** `:root` / `.dark` CSS variables for background/foreground.
+- **`app/layout.tsx`:** **`ThemeProvider`** (`components/theme-provider.tsx`, next-themes) wraps **`AuthProvider`**; `<html suppressHydrationWarning>`.
+- **`components/ThemeToggle.tsx`:** Used on the main dashboard (`HomeContent`) and settings header.
+
+### D. Transactions & drafts (schema reality)
+
+- **`Transaction.status`** in **`prisma/schema.prisma`:** **`DRAFT` | `COMPLETED`** (default `COMPLETED`). Indexed with `userId`, `date`. The dashboard/API use this for drafts vs. completed reporting.
+- **Drafts inbox / bulk upload** are **active** paths—not “broken” in the current design; treat older “BROKEN” comments in this file as obsolete where they conflict with the schema above.
+
+### E. Other API surfaces (quick map)
+
+| Area | Path / files |
+|------|----------------|
+| Admin | `app/admin/page.tsx`, `components/AdminUsersTable.tsx`, `app/api/admin/users/route.ts`, `app/api/admin/users/[id]/route.ts`, `lib/admin.ts` — **`is_admin` is not a DB column**; `isAdminUser` / `assertIsAdmin` use **`ADMIN_EMAIL`** (case-insensitive match) and/or comma-separated **`ADMIN_USER_IDS`** in env; session/login responses expose `is_admin` for UI. |
+| Feedback | `app/api/feedback/route.ts`, `components/ReportIssueFAB.tsx` |
+| Export | `app/api/export/route.ts` |
+| Auth extras | `app/forgot-password`, `app/reset-password` pages + matching `app/api/auth/*` |
+
+### F. `ruflo/` directory
+
+Bundled **external / tooling** tree (not part of the Next app runtime). Unless a task explicitly concerns it, **scope changes to `app/`, `components/`, `lib/` (root), `prisma/`** for this product.
+
+### G. Documentation siblings
+
+- **`README.md`** — points here for architecture and AI knowledge layout.
+- **`PHASE5_IMPLEMENTATION.md`**, **`TAX_KNOWLEDGE_BASE.md`** — historical / category focus; if they disagree with **§0** or **`prisma/schema.prisma`**, prefer **§0** + schema.
+
+### H. Main dashboard loading (`app/HomeContent.tsx`)
+
+- **Single list fetch:** `GET /api/transactions` with optional `startDate` / `endDate` derived from the `month` search param (bi-monthly VAT period via `getVatPeriodDateBoundsFromMonthParam` in `lib/fiscal-utils.ts`).
+- **Stats:** Computed only from rows where **`status === 'COMPLETED'`** and **`amount > 0`** (income/expense totals, recognized VAT, etc.). **`DRAFT`** rows in the same response are kept for **`DraftsInbox`** / editing, not for period totals.
+- **Meta:** Uses `meta.summary` (count + `latestCreatedAt`) as a fingerprint; `meta.hasAnyTransaction` drives onboarding empty-state.
+- **Silent poll:** Every **10s** while the tab is visible, refetches without forcing the main loading spinner (picks up WhatsApp-created drafts).
+- **UI shell:** `ThemeToggle`, `BulkUploadArea`, `DraftsInbox`, `TransactionManager`, `AIChat`, `ReportIssueFAB`, `TransactionEditor` modal for drafts.
+
+### I. Recent git scope (last 24h — illustrative, verify with `git log`)
+
+Commits in this window included: **VAT → 18%** and consolidation into **`lib/ai-knowledge.ts`** ( **`lib/tax-regulations.ts` removed** ), **streaming AI chat** (`app/api/chat/route.ts`, `components/AIChat.tsx`, `tailwind`/`globals` for dark + shimmer), **admin** routes/UI + **`lib/admin.ts`**, **draft filtering** (`HomeContent`, `DraftsInbox`, `app/api/transactions/route.ts`), **auth** `is_admin` in session/login, **feedback** API + **`ReportIssueFAB`**, **`ruflo/`** bulk import (separate product — see §F). Re-run `git log --since="24 hours ago"` before relying on exact hashes.
 
 ---
 
@@ -31,17 +102,23 @@ my-tax-app/
 │   │   ├── settings/route.ts        # ✅ [ACTIVE] User Profile + WhatsApp phone (uses Prisma)
 │   │   ├── upload/route.ts          # ✅ [ACTIVE] File upload handler
 │   │   ├── scan-receipt/route.ts    # ✅ [ACTIVE] Gemini receipt OCR
+│   │   ├── export/route.ts          # ✅ [ACTIVE] CSV export (UTF-8 BOM)
+│   │   ├── feedback/route.ts        # ✅ [ACTIVE] User feedback → FeedbackLog
+│   │   ├── admin/users/             # ✅ [ACTIVE] Admin user list / delete
 │   │   └── uploads/[...path]/route.ts   # ✅ [ACTIVE] File serving ("Hunter" system)
 │   │
-│   ├── page.tsx                     # ✅ [ACTIVE] Main Dashboard
+│   ├── page.tsx                     # ✅ [ACTIVE] Main Dashboard (HomeContent)
 │   ├── login/page.tsx               # ✅ [ACTIVE] Login page
 │   ├── register/page.tsx            # ✅ [ACTIVE] Registration page
+│   ├── forgot-password/page.tsx     # ✅ [ACTIVE] Password reset request
+│   ├── reset-password/page.tsx      # ✅ [ACTIVE] Password reset form
+│   ├── admin/page.tsx               # ✅ [ACTIVE] Admin users (env-gated)
 │   ├── settings/page.tsx            # ✅ [ACTIVE] Settings page
-│   └── layout.tsx                   # ✅ [ACTIVE] Root layout
+│   └── layout.tsx                   # ✅ [ACTIVE] Root layout (ThemeProvider + AuthProvider)
 │
 ├── 📁 components/                   # React Components
 │   ├── AIChat.tsx                   # ✅ [ACTIVE] AI Chat widget
-│   ├── DraftsInbox.tsx              # ⚠️ [NEEDS FIX] Draft system (broken)
+│   ├── DraftsInbox.tsx              # ✅ [ACTIVE] Draft inbox (`status === DRAFT`)
 │   ├── EditTransactionModal.tsx    # ✅ [ACTIVE] Transaction editor
 │   ├── FileUpload.tsx               # ✅ [ACTIVE] File upload component
 │   ├── TransactionEditor.tsx        # ✅ [ACTIVE] Transaction form
@@ -89,7 +166,7 @@ my-tax-app/
 ├── 📁 public/                       # Static files
 │   └── uploads/                     # ✅ [ACTIVE] Uploaded receipts/documents
 │
-├── vat_management.db                # ❌ STALE — do not use (active DB is prisma/vat_management.db)
+├── vat_management.db                # ❌ Legacy SQLite artifact if present — active stack is PostgreSQL (see §10 Active database)
 ├── package.json                     # ✅ [ACTIVE] Dependencies & scripts
 ├── prisma/                          # Prisma migrations (auto-generated)
 └── ARCHITECTURE.md                  # 📖 THIS FILE
@@ -119,6 +196,11 @@ my-tax-app/
 | `app/api/auth/login/route.ts` | User authentication | ✅ Active |
 | `app/api/upload/route.ts` | File upload handler | ✅ Active |
 | `app/api/uploads/[...path]/route.ts` | **"Hunter" file system** - Searches 5 directories | ✅ Active |
+| `app/api/scan-receipt/route.ts` | Receipt OCR (Gemini); uses shared `receipt-processor` | ✅ Active |
+| `app/api/export/route.ts` | Monthly **CSV** export (UTF-8 BOM) | ✅ Active |
+| `app/api/feedback/route.ts` | Persists `FeedbackLog` (table `Logs`) | ✅ Active |
+| `app/api/admin/users/route.ts` | List users (admin env check) | ✅ Active |
+| `app/api/admin/users/[id]/route.ts` | Delete user (admin) | ✅ Active |
 
 #### Frontend Pages
 | File | Purpose | Status |
@@ -127,6 +209,9 @@ my-tax-app/
 | `app/settings/page.tsx` | User Settings (Profile editor) | ✅ Fixed camelCase/snake_case mapping |
 | `app/login/page.tsx` | Login page | ✅ Active |
 | `app/register/page.tsx` | Registration page | ✅ Active |
+| `app/forgot-password/page.tsx` | Request password reset email | ✅ Active |
+| `app/reset-password/page.tsx` | Submit new password with token | ✅ Active |
+| `app/admin/page.tsx` | Admin user management UI | ✅ Active (env-gated) |
 
 #### Components
 | File | Purpose | Status |
@@ -137,6 +222,10 @@ my-tax-app/
 | `components/DraftsInbox.tsx` | Draft transactions inbox | ✅ Active (Fixed: Drafts now supported) |
 | `components/FileUpload.tsx` | File upload component | ✅ Active |
 | `components/VATReport.tsx` | VAT report display | ✅ Active |
+| `components/BulkUploadArea.tsx` | Multi-file upload → draft transactions | ✅ Active |
+| `components/ReportIssueFAB.tsx` | Feedback FAB → `/api/feedback` | ✅ Active |
+| `components/ThemeToggle.tsx` / `theme-provider.tsx` | Dark mode (`next-themes`) | ✅ Active |
+| `components/AdminUsersTable.tsx` | Admin user table | ✅ Active |
 
 #### Utilities
 | File | Purpose | Status |
@@ -174,7 +263,7 @@ my-tax-app/
 | `lib/db-operations.ts` | Old better-sqlite3 logic, reads from WRONG database | Use `lib/prisma.ts` + Prisma queries |
 | `lib/db.ts` | Old better-sqlite3 connection | Use `lib/prisma.ts` |
 | `lib/init-db.ts` | Old database initialization | Use `npx prisma db push` |
-| `lib/db-migration-draft-status.ts` | Old migration script | N/A (Prisma has no status field) |
+| `lib/db-migration-draft-status.ts` | Old migration script for legacy DB | N/A — use Prisma migrations / `status` on `Transaction` |
 | `scripts/setup-db.ts` | Old database setup | Use `npx prisma db push` |
 | `scripts/create-default-user.ts` | Old user creation | Use `scripts/seed-user.ts` |
 | `scripts/migrate-users.ts` | Old migration | Use `scripts/fix-ownership.ts` |
@@ -203,7 +292,7 @@ my-tax-app/
 │  Components:                                                     │
 │  - TransactionManager    (List & Create)                        │
 │  - TransactionEditor     (Edit Draft → Complete)                │
-│  - DraftsInbox          (⚠️ BROKEN - Draft creation)            │
+│  - DraftsInbox          (lists status=DRAFT)                     │
 │  - AIChat               (AI Assistant)                           │
 │  - Settings Page        (User Profile)                           │
 └────────────────┬────────────────────────────────────────────────┘
@@ -219,6 +308,9 @@ my-tax-app/
 │  ✅ /api/chat               (Gemini + AI_KNOWLEDGE_BASE + user context) │
 │  ✅ /api/settings           (Profile CRUD)                       │
 │  ✅ /api/upload             (File uploads)                       │
+│  ✅ /api/export             (CSV report)                         │
+│  ✅ /api/feedback           (user feedback)                      │
+│  ✅ /api/admin/users        (admin-only)                         │
 │                                                                  │
 │  All routes now use:                                             │
 │  import { prisma } from '@/lib/prisma';                          │
@@ -241,8 +333,8 @@ my-tax-app/
                  │
                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   SQLite DATABASE                                │
-│                   (vat_management.db)                            │
+│                   PostgreSQL (via DATABASE_URL)                  │
+│                   See prisma/schema.prisma — not SQLite in prod    │
 ├─────────────────────────────────────────────────────────────────┤
 │  Tables (defined in prisma/schema.prisma):                       │
 │                                                                  │
@@ -258,10 +350,10 @@ my-tax-app/
 │     - id: String (cuid)                                          │
 │     - userId: String (foreign key)                               │
 │     - type: String (INCOME/EXPENSE)                              │
-│     - amount, vatAmount, netAmount                               │
+│     - amount, vatAmount, netAmount, vatRate (default 0.18)      │
 │     - date, merchant, description, category                      │
 │     - receiptUrl                                                 │
-│     - ⚠️ NO STATUS FIELD (all transactions are complete)         │
+│     - status: String — 'DRAFT' | 'COMPLETED' (default COMPLETED)│
 │                                                                  │
 │  📊 ChatMessage                                                  │
 │     - id: String (cuid)                                          │
@@ -275,7 +367,7 @@ my-tax-app/
 
 1. **Single Source of Truth:** `prisma/schema.prisma` defines ALL data models
 2. **Type Safety:** Prisma auto-generates TypeScript types matching the schema
-3. **No Status Field:** Unlike the old database, Prisma has no `DRAFT`/`COMPLETED` status
+3. **Transaction status:** `Transaction.status` is **`DRAFT` | `COMPLETED`** (string column, default `COMPLETED`). Drafts use **`DraftsInbox`** + API filters; VAT stats use **COMPLETED** only (see §0.H).
 4. **String User IDs:** Prisma uses `String` (cuid), JWT uses `number` → Must convert!
 5. **Field Naming:** Prisma uses `camelCase`, frontend expects `snake_case` → API maps between them
 
@@ -864,26 +956,18 @@ const userIdStr = String(userId);
 
 ---
 
-### Issue 4: How Drafts Work (Fixed)
+### Issue 4: How drafts work (current behavior)
 
-**Status:** ✅ Fixed
+**Source of truth:** `Transaction.status` in **`prisma/schema.prisma`** — **`DRAFT`** or **`COMPLETED`**.
 
-**How it works now:**
-- Prisma schema has NO `status` field
-- Instead, we use **heuristics** to identify drafts:
-  - `amount === 0` → Draft
-  - `merchant === 'Draft Transaction'` → Draft
-  - Otherwise → Completed
+**Detection in UI:** `DraftsInbox` shows rows where `String(status).toUpperCase() === 'DRAFT'` (same idea in **`GET /api/transactions`** when filtering drafts).
 
-**Quick Draft Flow:**
-1. User uploads receipt → Creates transaction with defaults:
-   - `amount: 0`
-   - `type: 'EXPENSE'`
-   - `merchant: 'Draft Transaction'`
-   - `receiptUrl: (uploaded file path)`
-2. Transaction appears in DraftsInbox
-3. User fills in details → Updates transaction with real values
-4. Transaction automatically becomes "completed" (amount > 0)
+**Creation paths:**
+- **WhatsApp / receipt pipeline:** Creates **`status: 'DRAFT'`** with real amounts from Gemini when available; user completes via **`TransactionEditor`** (API sets **`COMPLETED`** when appropriate).
+- **Bulk upload:** `BulkUploadArea` creates drafts with **`status: 'DRAFT'`** (see component).
+- **API normalization:** `app/api/transactions/route.ts` maps DB rows to snake_case and preserves **`status`**; PUT/POST accept **`status`** to move between draft and completed.
+
+**Stats vs. inbox:** Dashboard totals (**`HomeContent`**) intentionally exclude **`DRAFT`** rows (only **`COMPLETED`** + **`amount > 0`**); drafts still appear in the shared fetch for the inbox.
 
 ---
 
@@ -892,31 +976,36 @@ const userIdStr = String(userId);
 ### User
 ```prisma
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  password      String
-  dealerNumber  String?   // Israeli tax ID (9 digits)
-  whatsappPhone String?   // WhatsApp phone number (format: 972XXXXXXXXX)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  password       String
+  dealerNumber   String?   // Israeli tax ID (9 digits)
+  whatsappPhone  String?   // Primary WhatsApp (format: 972XXXXXXXXX)
+  whatsappPhone2 String?   // Optional second linked number
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   profile        UserProfile?
   transactions   Transaction[]
   chatMessages   ChatMessage[]
   passwordResets PasswordReset[]
+  feedbackLogs   FeedbackLog[]
 
   @@index([whatsappPhone], name: "idx_whatsapp_phone")
+  @@index([whatsappPhone2], name: "idx_whatsapp_phone2")
 }
 ```
 
-**New Field: whatsappPhone**
+**WhatsApp fields (`whatsappPhone`, `whatsappPhone2`)**
 - **Format:** `972XXXXXXXXX` (normalized Israeli phone)
-- **Purpose:** Links user to WhatsApp account for receipt processing
+- **Purpose:** Link one or two numbers to the same account for receipt processing
 - **Normalization:** Applied via `normalizeIsraeliPhone()` before saving
 - **Display:** Formatted as `052-458-9771` in UI
-- **Lookup:** Webhook queries by `whatsappPhone = message.from`
-- **Index:** `idx_whatsapp_phone` for fast webhook lookups
+- **Lookup:** Webhook resolves user by matching `message.from` against either stored number
+- **Indexes:** `idx_whatsapp_phone`, `idx_whatsapp_phone2`
+
+**`FeedbackLog` (table `Logs`):** Stores in-app feedback from **`/api/feedback`** (`message`, `pageUrl`, `userId`).
 
 ### UserProfile
 ```prisma
@@ -970,14 +1059,10 @@ model Transaction {
 - **Format:** `https://xxxxx.supabase.co/storage/v1/object/public/receipts/userId/timestamp-filename.jpg`
 - **Supports:** JPEG, PNG, WebP, PDF
 
-**Key Differences from Old Schema:**
-- ❌ NO `status` field (DRAFT/COMPLETED)
-- ❌ NO `is_vat_deductible` field
-- ✅ Uses `receiptUrl` instead of `document_path`
-- ✅ **Draft Detection:** Drafts identified by heuristics:
-  - `amount === 0` OR
-  - `merchant === 'Draft Transaction'`
-  - API automatically marks these as `status: 'DRAFT'` in response
+**Key differences from legacy SQLite-era schema:**
+- ✅ **`status`** column: explicit **`DRAFT` | `COMPLETED`** (no reliance on `amount === 0` alone for draft detection in current API/UI).
+- ✅ Uses **`receiptUrl`** (and API may still expose legacy **`document_path`** alias in mapped responses where applicable).
+- ❌ No separate `is_vat_deductible` column — deductibility is driven by **category** + **`lib/tax-knowledge.ts`** rules.
 
 ---
 
@@ -994,10 +1079,9 @@ model Transaction {
 
 ### ⚠️ In Progress
 - [ ] Review attach-doc endpoint after migration
-- [ ] Test draft workflow end-to-end
+- [ ] Test draft workflow end-to-end (WhatsApp → DraftsInbox → complete)
 
 ### 🔮 Future Enhancements
-- [ ] Add status field to Prisma schema if draft system is needed
 - [ ] Migrate remaining old scripts to Prisma
 - [ ] Remove deprecated files (lib/db-operations.ts, lib/db.ts, etc.)
 - [ ] Add automated tests
@@ -1076,10 +1160,9 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 
 > **Digital services rule:** Cardcom, Replit, Claude, SaaS → `software` → 100% VAT recognition.
 
-### Active Database
-- `.env`: `DATABASE_URL="file:./vat_management.db"` (resolves relative to `prisma/schema.prisma`)
-- **Active DB:** `prisma/vat_management.db` ✅
-- **Stale DB:** `vat_management.db` (root) ❌ — deleted on 2026-03-12
+### Active database
+- **`prisma/schema.prisma`** uses **`provider = "postgresql"`** — production and typical dev use **`DATABASE_URL`** (and often **`DIRECT_URL`** for migrations) pointing at **PostgreSQL** (e.g. Supabase).
+- Legacy **SQLite** `vat_management.db` paths may still appear in old notes; **do not** assume file-based DB unless your local `.env` explicitly uses `file:` (verify before debugging “wrong DB”).
 
 ---
 
@@ -1095,6 +1178,7 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 | 2026-03-12 | Fixed vatPercentage precision (0.6666 → 0.6667) | Claude |
 | 2026-03-12 | Added Tax Rules section; deleted stale root DB | Claude |
 | 2026-03-31 | Docs: consolidated chat rules in `lib/ai-knowledge.ts`; removed `lib/tax-regulations.ts` references | — |
+| 2026-03-31 | **Full “sync with reality” pass:** added §0 handoff (VAT 18%, chat stack, theme, drafts/schema, admin env, `ruflo/` scope); fixed data-flow diagram + DB host (PostgreSQL); removed contradictory “no status field” / heuristic-only draft text; documented `HomeContent` fetch + admin `ADMIN_EMAIL` / `ADMIN_USER_IDS` | — |
 
 ---
 
@@ -1148,10 +1232,9 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
   - Test net profit calculation
   - Verify all aggregations in app/page.tsx
 
-- [ ] **Export Accuracy**
-  - Verify bi-monthly reports (two-month periods)
-  - Check Excel formulas
-  - Verify totals match dashboard
+- [ ] **Export accuracy**
+  - Verify monthly CSV columns and Hebrew labels
+  - Verify totals match dashboard for the same `month` param
   - Test date range filtering
 
 **Success Criteria:**
@@ -1256,7 +1339,7 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 - ✅ AI Chat (Gemini + consolidated `AI_KNOWLEDGE_BASE` in `lib/ai-knowledge.ts` + user context)
 - ✅ Dashboard with income/expense summaries
 - ✅ VAT reporting and calculations
-- ✅ Export to Excel (bi-monthly reports)
+- ✅ Export to **CSV** (UTF-8 BOM; opens in Excel) for monthly reports
 - ✅ Multi-user support (Prisma with userId isolation)
 
 **What Needs Verification:**
@@ -1274,7 +1357,5 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 
 ---
 
-**Prepared for next session on:** 2026-03-30
-**Ready to:** Verify tax compliance and prepare for beta launch
-
-# Test Sync: 03/30/2026 - WhatsApp Integration Complete
+**Prepared for next session on:** 2026-03-31  
+**Ready to:** Verify tax compliance (§12 checklist) and prepare for beta launch; start from **§0** in this file for cold context.

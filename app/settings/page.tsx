@@ -193,17 +193,17 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="ui-surface flex min-h-screen items-center justify-center">
         <div className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-          <p className="text-gray-600 dark:text-gray-400">טוען הגדרות...</p>
+          <p className="text-text-muted">טוען הגדרות...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-950 md:p-8">
+    <div className="ui-surface min-h-screen p-4 md:p-8">
       {/* Header */}
       <div className="mx-auto mb-6 max-w-3xl">
         <button
@@ -214,7 +214,7 @@ export default function SettingsPage() {
           חזרה לדף הראשי
         </button>
 
-        <div className="rounded-lg bg-gradient-to-l from-blue-600 to-blue-700 p-6 text-white shadow-md dark:from-blue-800 dark:to-blue-950">
+        <div className="rounded-lg border border-blue-500/30 bg-gradient-to-l from-blue-600 to-blue-700 p-6 text-white shadow-sm dark:border-blue-900/70 dark:from-blue-900 dark:to-blue-950">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <UserIcon className="h-10 w-10" />
@@ -234,8 +234,8 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Business Name */}
-          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
-            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+          <div className="ui-card p-6">
+            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-text">
               <Building2 className="w-5 h-5 text-blue-600" />
               שם העסק
             </label>
@@ -244,16 +244,16 @@ export default function SettingsPage() {
               value={form.businessName}
               onChange={(e) => setForm({ ...form, businessName: e.target.value })}
               placeholder="לדוגמה: סטודיו לעיצוב גרפי"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              className="ui-input px-4 py-3"
             />
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="mt-2 text-xs text-text-muted">
               שם העסק שלך (אופציונלי)
             </p>
           </div>
 
           {/* Business Type */}
-          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+          <div className="ui-card p-6">
+            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-text">
               <Building2 className="w-5 h-5 text-blue-600" />
               סוג העסק
             </label>
@@ -265,27 +265,27 @@ export default function SettingsPage() {
                   setForm({ ...form, businessType: v as SettingsForm["businessType"] });
                 }
               }}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              className="ui-input px-4 py-3"
             >
               <option value="OSEK_PATUR">עוסק פטור (מחזור עד 102,292 ₪)</option>
               <option value="OSEK_MURSHE">עוסק מורשה (מחזור מעל 102,292 ₪)</option>
               <option value="LTD">חברה בע״מ</option>
             </select>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="mt-2 text-xs text-text-muted">
               סוג הרישוי העסקי שלך משפיע על חישובי המע״מ
             </p>
           </div>
 
           {/* Home Office */}
-          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+          <div className="ui-card p-6">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
                 <Home className="w-5 h-5 text-blue-600 mt-1" />
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                  <label className="mb-1 block text-sm font-medium text-text">
                     משרד ביתי
                   </label>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-text-muted">
                     האם אתה עובד מהבית? (משפיע על ניכוי הוצאות משרד, חשמל, אינטרנט)
                   </p>
                 </div>
@@ -309,15 +309,15 @@ export default function SettingsPage() {
           </div>
 
           {/* Children */}
-          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+          <div className="ui-card p-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start gap-3">
                 <Users className="w-5 h-5 text-blue-600 mt-1" />
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                  <label className="mb-1 block text-sm font-medium text-text">
                     יש לי ילדים
                   </label>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-text-muted">
                     משפיע על נקודות זיכוי במס הכנסה
                   </p>
                 </div>
@@ -330,8 +330,8 @@ export default function SettingsPage() {
                 }`}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-200 ease-in-out ${
-                    form.hasChildren ? "translate-x-6" : "translate-x-1"
+                  className={`pointer-events-none absolute top-1 size-4 rounded-full bg-white shadow transition-all duration-200 ease-in-out ${
+                    form.hasChildren ? "start-[calc(100%-1.25rem)]" : "start-1"
                   }`}
                 />
               </button>
@@ -339,8 +339,8 @@ export default function SettingsPage() {
 
             {/* Children Count */}
             {form.hasChildren && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <label className="text-sm font-medium text-gray-700 block mb-2">
+              <div className="mt-4 border-t border-border pt-4">
+                <label className="mb-2 block text-sm font-medium text-text">
                   מספר ילדים
                 </label>
                 <input
@@ -349,22 +349,22 @@ export default function SettingsPage() {
                   max="20"
                   value={form.childrenCount}
                   onChange={(e) => setForm({ ...form, childrenCount: parseInt(e.target.value) || 0 })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  className="ui-input px-4 py-3"
                 />
               </div>
             )}
           </div>
 
           {/* Vehicle */}
-          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+          <div className="ui-card p-6">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
                 <Car className="w-5 h-5 text-blue-600 mt-1" />
                 <div>
-                  <label className="text-sm font-medium text-gray-700 block mb-1">
+                  <label className="mb-1 block text-sm font-medium text-text">
                     רכב עסקי
                   </label>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-text-muted">
                     האם יש לך רכב? (משפיע על ניכוי דלק, חניה, תחזוקה)
                   </p>
                 </div>
@@ -388,14 +388,14 @@ export default function SettingsPage() {
           </div>
 
           {/* WhatsApp Integration */}
-          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+          <div className="ui-card p-6">
             <div className="flex items-start gap-3 mb-4">
               <Phone className="w-5 h-5 text-green-600 mt-1" />
               <div className="flex-1">
-                <label className="text-sm font-medium text-gray-700 block mb-1">
+                <label className="mb-1 block text-sm font-medium text-text">
                   מספר טלפון לחיבור וואטסאפ
                 </label>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="mb-3 text-xs text-text-muted">
                   הזן את המספר שממנו תשלח קבלות (לדוגמה: 052-1234567)
                 </p>
                 <input
@@ -404,12 +404,12 @@ export default function SettingsPage() {
                   onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })}
                   placeholder="052-1234567"
                   dir="ltr"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 text-left"
+                  className="ui-input px-4 py-3 text-left"
                 />
-                <label className="text-sm font-medium text-gray-700 block mb-1 mt-4">
+                <label className="mb-1 mt-4 block text-sm font-medium text-text">
                   מספר נוסף (אופציונלי)
                 </label>
-                <p className="text-xs text-gray-500 mb-2">
+                <p className="mb-2 text-xs text-text-muted">
                   אופציונלי: מספר נוסף לקבלות (למשל מכשיר או עובד).
                 </p>
                 <input
@@ -418,14 +418,14 @@ export default function SettingsPage() {
                   onChange={(e) => setForm({ ...form, whatsappPhone2: e.target.value })}
                   placeholder="052-9876543"
                   dir="ltr"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-gray-900 text-left"
+                  className="ui-input px-4 py-3 text-left"
                 />
               </div>
             </div>
 
             {/* Instructions - Show when phone is saved */}
             {(form.whatsappPhone || form.whatsappPhone2) && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="mt-4 border-t border-border pt-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <p className="text-sm font-medium text-green-900 mb-3 flex items-center gap-2">
                     <MessageCircle className="w-4 h-4" />
@@ -481,7 +481,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* QR Code - Desktop Only */}
-                    <div className="hidden md:flex flex-col items-center justify-center bg-white rounded-lg p-4 border border-green-300">
+                    <div className="hidden md:flex flex-col items-center justify-center rounded-lg border border-green-300 bg-card p-4">
                       <div className="mb-2">
                         <QRCodeSVG
                           value="https://wa.me/15551426760"
@@ -514,7 +514,7 @@ export default function SettingsPage() {
 
         {/* Info Box */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-text">
             <strong>💡 למה זה חשוב?</strong> המערכת משתמשת בפרטים האלה כדי לספק המלצות מדויקות יותר על ניכויים מס, קיזוז מע״מ, וניהול הוצאות.
           </p>
         </div>

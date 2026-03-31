@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { FileText, AlertCircle, Eye, Clock, CheckCircle, Trash2 } from "lucide-react";
+import HelpTooltip from "./HelpTooltip";
 
 interface Transaction {
   id: string | number; // Support both CUID and legacy numeric IDs
@@ -88,7 +89,7 @@ export default function DraftsInbox({
 
   if (loading) {
     return (
-      <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+      <div className="ui-card p-6">
         <div className="flex animate-pulse space-x-4">
           <div className="flex-1 space-y-4 py-1">
             <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700"></div>
@@ -105,15 +106,15 @@ export default function DraftsInbox({
   // Empty state
   if (drafts.length === 0) {
     return (
-      <div className="rounded-lg border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-8 dark:border-green-800 dark:from-green-950/40 dark:to-emerald-950/40">
+      <div className="ui-notice ui-notice-success p-5 md:p-6">
         <div className="flex flex-col items-center text-center">
-          <div className="mb-4 rounded-full bg-green-100 p-4 dark:bg-green-900/50">
+          <div className="mb-3 rounded-full bg-card-muted p-3">
             <CheckCircle className="h-12 w-12 text-green-600" />
           </div>
-          <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">
+          <h3 className="mb-2 text-xl font-bold text-text">
             כל הקבלות עובדו! 🎉
           </h3>
-          <p className="max-w-md text-gray-600 dark:text-gray-400">
+          <p className="max-w-md text-text-muted">
             אין קבלות ממתינות. כל הקבלות שהעלית מלאות ומוכנות לדיווח.
           </p>
         </div>
@@ -132,29 +133,35 @@ export default function DraftsInbox({
   };
 
   return (
-    <div className="rounded-lg bg-white shadow-md dark:bg-gray-900">
+    <div className="ui-card">
       {/* Header */}
-      <div className="border-b-2 border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50 p-6 dark:border-yellow-800 dark:from-yellow-950/50 dark:to-amber-950/50">
+      <div className="ui-toolbar rounded-none border-x-0 border-t-0 border-b p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="rounded-full bg-yellow-100 p-3 dark:bg-yellow-900/50">
-              <AlertCircle className="h-6 w-6 text-yellow-600" />
+            <div className="rounded-full bg-card-muted p-3">
+              <AlertCircle className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">קבלות ממתינות</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <h2 className="flex items-center gap-1 text-2xl font-bold text-text">
+                <span>קבלות ממתינות</span>
+                <HelpTooltip
+                  text="קבלה שנשמרה אבל עדיין חסרים בה פרטים לפני דיווח."
+                  label="מה זה טיוטה"
+                />
+              </h2>
+              <p className="text-sm text-text-muted">
                 {drafts.length} {drafts.length === 1 ? "קבלה ממתינה" : "קבלות ממתינות"} למילוי פרטים
               </p>
             </div>
           </div>
-          <div className="bg-yellow-500 text-white px-4 py-2 rounded-full font-bold text-lg">
+          <div className="ui-badge px-4 py-2 text-lg font-bold text-primary">
             {drafts.length}
           </div>
         </div>
       </div>
 
       {/* Drafts Grid */}
-      <div className="p-6">
+      <div className="p-5 md:p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {drafts.map((draft) => {
             const missingInfo = getMissingInfo(draft);
@@ -167,7 +174,7 @@ export default function DraftsInbox({
             return (
               <div
                 key={draft.id}
-                className="group overflow-hidden rounded-lg border-2 border-gray-200 transition-all duration-200 hover:border-yellow-400 hover:shadow-lg dark:border-gray-700 dark:hover:border-yellow-600"
+                className="group overflow-hidden rounded-lg border border-border transition-all duration-200 hover:shadow-sm"
               >
                 {/* Receipt Thumbnail */}
                 <div className="relative flex h-48 items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800">
@@ -213,15 +220,15 @@ export default function DraftsInbox({
                 </div>
 
                 {/* Card Content */}
-                <div className="border-t border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="border-t border-border bg-card p-4">
                   {/* Missing Info List */}
                   <div className="mb-3">
-                    <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">חסר:</p>
+                    <p className="mb-1 text-xs font-medium text-text-muted">חסר:</p>
                     <div className="flex flex-wrap gap-1">
                       {missingInfo.map((info) => (
                         <span
                           key={info}
-                          className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                          className="ui-chip border-danger/40 bg-danger/10 text-danger"
                         >
                           {info}
                         </span>
@@ -231,12 +238,12 @@ export default function DraftsInbox({
 
                   {/* Partial Info Display */}
                   {draft.description && (
-                    <p className="mb-2 truncate text-sm text-gray-700 dark:text-gray-300">
+                    <p className="mb-2 truncate text-sm text-text">
                       <span className="font-medium">ספק:</span> {draft.description}
                     </p>
                   )}
                   {typeof draft.amount === "number" && !Number.isNaN(draft.amount) && (
-                    <p className="mb-2 text-sm text-gray-700 dark:text-gray-300">
+                    <p className="mb-2 text-sm text-text">
                       <span className="font-medium">סכום:</span> ₪{draft.amount.toFixed(2)}
                     </p>
                   )}
@@ -245,7 +252,7 @@ export default function DraftsInbox({
                   <div className="grid grid-cols-[1fr_auto] gap-2 mt-3">
                     <button
                       onClick={() => onReviewDraft(draft)}
-                      className="bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
+                      className="ui-button ui-button-primary px-4 py-2 font-bold"
                     >
                       <Eye className="w-4 h-4" />
                       מלא פרטים
@@ -255,7 +262,7 @@ export default function DraftsInbox({
                         e.stopPropagation();
                         handleDelete(draft.id);
                       }}
-                      className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-3 rounded-lg transition-all duration-200 flex items-center justify-center"
+                      className="ui-button ui-button-danger px-3 py-2 font-bold"
                       title="מחק קבלה"
                     >
                       <Trash2 className="w-4 h-4" />

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Pencil, Download } from "lucide-react";
 import FileUpload from "./FileUpload";
 import EditTransactionModal from "./EditTransactionModal";
+import HelpTooltip from "./HelpTooltip";
 import {
   TAX_CATEGORIES,
   TaxCategory,
@@ -315,38 +316,38 @@ export default function TransactionManager({
 
   return (
     <div className="mx-auto max-w-6xl px-0 sm:px-0">
-      <div className="rounded-lg bg-white p-4 shadow-md dark:bg-gray-900 sm:p-6">
-        <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-gray-100 sm:mb-6 sm:text-2xl">ניהול עסקאות</h2>
+      <div className="ui-card p-5 sm:p-6">
+        <h2 className="mb-4 text-xl font-bold text-text sm:mb-6 sm:text-2xl">ניהול עסקאות</h2>
 
         {/* Period Management Toolbar */}
-        <div className="mb-4 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 dark:border-blue-800 dark:from-blue-950/50 dark:to-indigo-950/50 sm:mb-6 sm:p-4">
+        <div className="ui-toolbar mb-4 sm:mb-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-y-3">
             {/* Left Side: Period Navigation */}
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <button
                 onClick={handlePreviousPeriod}
-                className="rounded-md p-2 transition-colors hover:bg-white dark:hover:bg-gray-800"
+                className="ui-button ui-button-ghost px-2 py-2"
                 aria-label="תקופה קודמת"
               >
-                <ChevronRight className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <ChevronRight className="h-5 w-5 text-primary" />
               </button>
 
-              <div className="min-w-[10rem] text-center text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base md:text-lg">
+              <div className="min-w-[10rem] text-center text-sm font-semibold text-text sm:text-base md:text-lg">
                 {getPeriodLabel(currentPeriod)}
               </div>
 
               <button
                 onClick={handleNextPeriod}
-                className="rounded-md p-2 transition-colors hover:bg-white dark:hover:bg-gray-800"
+                className="ui-button ui-button-ghost px-2 py-2"
                 aria-label="תקופה הבאה"
               >
-                <ChevronLeft className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                <ChevronLeft className="h-5 w-5 text-primary" />
               </button>
 
               {/* Download Bi-Monthly VAT Report Button */}
               <button
                 onClick={handleDownloadCSV}
-                className="flex items-center gap-2 rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-blue-600 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/50 sm:mr-2 sm:text-sm"
+                className="ui-button ui-button-ghost text-xs text-primary sm:mr-2 sm:text-sm"
                 title="הורד דוח מע״מ דו-חודשי מקיף (הכנסות, הוצאות וסיכום)"
               >
                 <Download className="w-4 h-4 shrink-0" />
@@ -357,7 +358,7 @@ export default function TransactionManager({
             {/* Right Side: Deadline Badge & Countdown */}
             <div className="flex items-center flex-wrap gap-2">
               {/* Deadline Badge */}
-              <div className="text-xs text-gray-700 dark:text-gray-300 md:text-sm">
+              <div className="text-xs text-text-muted md:text-sm">
                 <span className="font-medium">להגשה עד: </span>
                 <span className="font-semibold">
                   {getDeadline(currentPeriod).toLocaleDateString('he-IL')}
@@ -390,8 +391,8 @@ export default function TransactionManager({
             onClick={() => setActiveTab("income")}
             className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors shrink-0 ${
               activeTab === "income"
-                ? "border-b-2 border-green-600 text-green-700"
-                : "text-gray-500 hover:text-gray-700"
+                ? "border-b-2 border-primary text-primary"
+                : "text-text-muted hover:text-text"
             }`}
           >
             <TrendingUp className="w-5 h-5" />
@@ -401,8 +402,8 @@ export default function TransactionManager({
             onClick={() => setActiveTab("expense")}
             className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors shrink-0 ${
               activeTab === "expense"
-                ? "border-b-2 border-red-600 text-red-700"
-                : "text-gray-500 hover:text-gray-700"
+                ? "border-b-2 border-primary text-primary"
+                : "text-text-muted hover:text-text"
             }`}
           >
             <TrendingDown className="w-5 h-5" />
@@ -411,10 +412,10 @@ export default function TransactionManager({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 mb-8">
+        <form onSubmit={handleSubmit} className="mb-8 space-y-5">
           {/* Date */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
               <Calendar className="w-4 h-4" />
               תאריך
             </label>
@@ -423,13 +424,13 @@ export default function TransactionManager({
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              className="ui-input"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
+            <label className="mb-1 block text-sm font-medium text-text">
               {activeTab === "income" ? "לקוח / תיאור" : "ספק / תיאור"}
             </label>
             <input
@@ -442,18 +443,22 @@ export default function TransactionManager({
                   ? "לדוגמה: תשלום מלקוח ABC"
                   : "לדוגמה: קניית ציוד משרדי"
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
+              className="ui-input"
             />
           </div>
 
           {/* Tax Category - Smart Selection (appears below description for better UX) */}
           {activeTab === "expense" && (
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
                 <Tag className="w-4 h-4" />
-                קטגוריה מס
+                <span>קטגוריה מס</span>
+                <HelpTooltip
+                  text="הקטגוריה עוזרת למערכת להבין איך להתייחס להוצאה בדיווח."
+                  label="מה זו קטגוריה מס"
+                />
                 {autoDetected && (
-                  <span className="text-xs text-blue-600 flex items-center gap-1">
+                  <span className="ui-chip text-primary">
                     <Sparkles className="w-3 h-3" />
                     זוהה אוטומטית
                   </span>
@@ -462,7 +467,7 @@ export default function TransactionManager({
               <select
                 value={category}
                 onChange={(e) => handleCategoryChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                className="ui-input"
               >
                 <option value="">בחר קטגוריה...</option>
                 {TAX_CATEGORIES.map((cat) => (
@@ -476,25 +481,25 @@ export default function TransactionManager({
 
           {/* Tax Category Warning & Legal Reference */}
           {selectedTaxCategory && activeTab === "expense" && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+            <div className="ui-notice ui-notice-warning p-4">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-sm text-gray-700 mb-2">
+                  <p className="mb-2 text-sm text-text">
                     <strong>הנחיה משפטית:</strong> {selectedTaxCategory.warning}
                   </p>
                   <div className="flex items-center gap-4 text-xs">
-                    <span className="text-gray-600">
+                    <span className="text-text-muted">
                       ניכוי מע״מ: <strong>{(selectedTaxCategory.vatPercentage * 100).toFixed(0)}%</strong>
                     </span>
-                    <span className="text-gray-600">
+                    <span className="text-text-muted">
                       הכרה למס הכנסה: <strong>{(selectedTaxCategory.incomeTaxRecognition * 100).toFixed(0)}%</strong>
                     </span>
                     <a
                       href={selectedTaxCategory.legalRefUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                      className="flex items-center gap-1 text-primary hover:underline"
                     >
                       <ExternalLink className="w-3 h-3" />
                       מקור חוקי (נבו)
@@ -507,7 +512,7 @@ export default function TransactionManager({
 
           {/* Total Amount */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
+            <label className="mb-1 block text-sm font-medium text-text">
               סכום כולל (כולל מע״מ)
             </label>
             <input
@@ -517,37 +522,37 @@ export default function TransactionManager({
               onChange={(e) => setTotalAmount(e.target.value)}
               required
               placeholder="0.00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-semibold text-gray-900 placeholder:text-gray-400"
+              className="ui-input text-lg font-semibold"
             />
           </div>
 
           {/* Auto-calculated values */}
           {vatAmount !== null && netAmount !== null && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div className="ui-notice ui-notice-info p-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">סכום נטו:</span>
-                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                  <span className="text-text-muted">סכום נטו:</span>
+                  <span className="mr-2 font-bold tabular-nums text-text">
                     ₪{formatMoney(netAmount)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600">מע״מ מלא (18%):</span>
-                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                  <span className="text-text-muted">מע״מ מלא (18%):</span>
+                  <span className="mr-2 font-bold tabular-nums text-text">
                     ₪{formatMoney(vatAmount)}
                   </span>
                 </div>
                 {deductibleVatAmount !== null && selectedTaxCategory && (
                   <>
-                    <div className="col-span-2 border-t border-blue-300 pt-2 mt-2">
-                      <span className="text-gray-700 font-medium">
+                    <div className="col-span-2 mt-2 border-t border-border pt-2">
+                      <span className="font-medium text-text">
                         מע״מ מותר לקיזוז ({(selectedTaxCategory.vatPercentage * 100).toFixed(0)}%):
                       </span>
-                      <span className="font-bold text-green-700 text-base mr-2 tabular-nums">
+                      <span className="mr-2 text-base font-bold tabular-nums text-success">
                         ₪{formatMoney(deductibleVatAmount)}
                       </span>
                       {selectedTaxCategory.vatPercentage < 1.0 && (
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="mt-1 text-xs text-text-muted">
                           💡 חישבתי לך את המע״מ המותר לפי החוק. אתה יכול לשנות ידנית אם צריך.
                         </p>
                       )}
@@ -563,24 +568,24 @@ export default function TransactionManager({
             <>
               {/* Show warning box only for special rule categories (0% VAT or partial VAT) */}
               {selectedTaxCategory && selectedTaxCategory.vatPercentage < 1.0 && (
-                <div className={`border rounded-md p-4 ${
+                <div className={`ui-notice p-4 ${
                   selectedTaxCategory.vatPercentage === 0
-                    ? "bg-red-50 border-red-200"
-                    : "bg-yellow-50 border-yellow-200"
+                    ? "ui-notice-danger"
+                    : "ui-notice-warning"
                 }`}>
                   <div className="flex items-start gap-2">
                     <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
                       selectedTaxCategory.vatPercentage === 0 ? "text-red-600" : "text-yellow-600"
                     }`} />
                     <div className="flex-1">
-                      <p className={`text-sm font-medium mb-1 ${
+                      <p className={`mb-1 text-sm font-medium ${
                         selectedTaxCategory.vatPercentage === 0 ? "text-red-800" : "text-yellow-800"
                       }`}>
                         {selectedTaxCategory.vatPercentage === 0
                           ? "⚠️ אין קיזוז מע״מ לקטגוריה זו"
                           : "⚠️ קיזוז מע״מ חלקי בלבד"}
                       </p>
-                      <p className="text-xs text-gray-700">
+                      <p className="text-xs text-text">
                         {selectedTaxCategory.vatPercentage === 0
                           ? `${selectedTaxCategory.label} אינה מאפשרת קיזוז מע״מ לפי החוק.`
                           : `לפי החוק, ניתן לקזז רק ${(selectedTaxCategory.vatPercentage * 100).toFixed(0)}% מהמע״מ.`}
@@ -591,7 +596,7 @@ export default function TransactionManager({
               )}
 
               {/* Clean checkbox row - always visible */}
-              <div className="rounded-md border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+              <div className="ui-card p-4">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -605,13 +610,14 @@ export default function TransactionManager({
                       setIsVatDeductible(e.target.checked);
                     }}
                     disabled={selectedTaxCategory?.vatPercentage === 0 || false}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="h-5 w-5 rounded border-border text-primary focus:ring-2 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
                   />
-                  <span className="text-sm font-medium text-gray-700">
-                    האם המע״מ מוכר לקיזוז?
+                  <span className="flex items-center gap-1 text-sm font-medium text-text">
+                    <span>האם המע״מ מוכר לקיזוז?</span>
+                    <HelpTooltip text="אם ההוצאה מוכרת, המע״מ שלה יופיע לקיזוז." label="מה זה קיזוז מע״מ" />
                   </span>
                 </label>
-                <p className="text-xs text-gray-500 mr-8 mt-1">
+                <p className="mr-8 mt-1 text-xs text-text-muted">
                   {!selectedTaxCategory
                     ? "בחר קטגוריה כדי לקבל המלצה אוטומטית"
                     : selectedTaxCategory.vatPercentage === 0
@@ -639,11 +645,11 @@ export default function TransactionManager({
 
         {/* Transactions List */}
         <div>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+          <h3 className="mb-4 text-lg font-semibold text-text">
             עסקאות לתקופה ({displayedTransactions.length})
           </h3>
           {displayedTransactions.length === 0 ? (
-            <p className="py-8 text-center text-gray-500 dark:text-gray-400">
+            <p className="py-8 text-center text-text-muted">
               אין עסקאות להצגה. הוסף את העסקה הראשונה שלך!
             </p>
           ) : (
@@ -655,22 +661,22 @@ export default function TransactionManager({
                 return (
                   <div
                     key={`m-${transaction.id}`}
-                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800 dark:ring-white/10"
+                    className="ui-card rounded-2xl p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs text-gray-500 tabular-nums">
+                        <p className="text-xs text-text-muted tabular-nums">
                           {new Date(transaction.date).toLocaleDateString("he-IL")}
                         </p>
-                        <p className="mt-1.5 text-base font-semibold leading-snug text-gray-900 line-clamp-2">
+                        <p className="mt-1.5 line-clamp-2 text-base font-semibold leading-snug text-text">
                           {transaction.description}
                         </p>
-                        <p className="mt-1 text-xs text-gray-600">
+                        <p className="mt-1 text-xs text-text-muted">
                           {taxCategory ? taxCategory.label : (transaction.category || "-")}
                         </p>
                       </div>
                       <div className="text-end shrink-0">
-                        <p className="text-lg font-bold tabular-nums text-gray-900">
+                        <p className="text-lg font-bold tabular-nums text-text">
                           ₪{formatMoney(transaction.amount)}
                         </p>
                         {transaction.type === "income" ? (
@@ -684,22 +690,22 @@ export default function TransactionManager({
                         )}
                       </div>
                     </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-4 text-xs">
+                    <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4 text-xs">
                       <div className="min-w-0">
-                        <span className="block text-gray-500">מע״מ בקבלה</span>
-                        <p className="mt-0.5 font-semibold tabular-nums text-gray-900">
+                        <span className="block text-text-muted">מע״מ בקבלה</span>
+                        <p className="mt-0.5 font-semibold tabular-nums text-text">
                           ₪{formatMoney(transaction.vat_amount)}
                         </p>
                       </div>
                       <div className="min-w-0 text-end">
-                        <span className="block text-gray-500">מע״מ מוכר</span>
+                        <span className="block text-text-muted">מע״מ מוכר</span>
                         {transaction.type === "expense" ? (
                           transaction.recognized_vat_amount !== undefined ? (
                             <p className="mt-0.5 font-semibold tabular-nums text-green-700">
                               ₪{formatMoney(transaction.recognized_vat_amount)}
                             </p>
                           ) : (
-                            <p className="mt-0.5 text-gray-400">טרם חושב</p>
+                            <p className="mt-0.5 text-text-muted">טרם חושב</p>
                           )
                         ) : (
                           <p className="mt-0.5 font-semibold tabular-nums text-green-700">
@@ -708,7 +714,7 @@ export default function TransactionManager({
                         )}
                       </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                       <div className="min-w-0 flex-1">
                         <FileUpload
                           transactionId={transaction.id}
@@ -716,11 +722,11 @@ export default function TransactionManager({
                           onSuccess={triggerRefresh}
                         />
                       </div>
-                      <div className="flex shrink-0 gap-1">
+                      <div className="flex shrink-0 items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => handleEdit(transaction)}
-                          className="rounded-lg p-2.5 text-blue-600 hover:bg-blue-50"
+                          className="ui-button ui-button-ghost h-9 w-9 p-0 text-primary"
                           title="ערוך עסקה"
                         >
                           <Pencil className="h-4 w-4" />
@@ -728,7 +734,7 @@ export default function TransactionManager({
                         <button
                           type="button"
                           onClick={() => handleDelete(transaction.id, transaction.description)}
-                          className="rounded-lg p-2.5 text-red-600 hover:bg-red-50"
+                          className="ui-button ui-button-ghost h-9 w-9 p-0 text-danger"
                           title="מחק עסקה"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -740,22 +746,30 @@ export default function TransactionManager({
               })}
             </div>
 
-            <div className="hidden md:block max-h-[min(70vh,560px)] overflow-x-auto overflow-y-auto relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent -mx-1 px-1">
-              <table className="w-full min-w-[720px] text-sm">
-                <thead className="sticky top-0 z-10 border-b-2 border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+            <div className="relative -mx-1 hidden max-h-[min(70vh,560px)] overflow-x-auto overflow-y-auto px-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent md:block">
+              <table className="ui-table min-w-[720px]">
+                <thead className="sticky top-0 z-10 border-b-2 border-border bg-card shadow-sm">
                   <tr>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">תאריך</th>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">סוג</th>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">תיאור</th>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">קטגוריה</th>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">סכום כולל</th>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">מע״מ בקבלה</th>
-                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">מע״מ מוכר</th>
-                    <th className="bg-gray-50 px-4 py-3 text-center text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">מסמך</th>
-                    <th className="bg-gray-50 px-4 py-3 text-center text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">פעולות</th>
+                    <th>תאריך</th>
+                    <th>סוג</th>
+                    <th>תיאור</th>
+                    <th>קטגוריה</th>
+                    <th>סכום כולל</th>
+                    <th>מע״מ בקבלה</th>
+                    <th>
+                      <span className="inline-flex items-center gap-1">
+                        <span>מע״מ מוכר</span>
+                        <HelpTooltip
+                          text="זה המע״מ על הוצאות שהמדינה מאפשרת לך לקזז."
+                          label="מה זה מע״מ מוכר בטבלה"
+                        />
+                      </span>
+                    </th>
+                    <th className="text-center">מסמך</th>
+                    <th className="text-center">פעולות</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody className="divide-y divide-border">
                   {displayedTransactions.map((transaction) => {
                     // Get Hebrew category label
                     const taxCategory = transaction.category ? getCategoryById(transaction.category) : null;
@@ -763,9 +777,9 @@ export default function TransactionManager({
                     return (
                     <tr
                       key={transaction.id}
-                      className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/80"
+                      className="transition-colors hover:bg-card-muted/50"
                     >
-                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
+                      <td>
                         {new Date(transaction.date).toLocaleDateString("he-IL")}
                       </td>
                       <td className="px-4 py-3">
@@ -781,14 +795,14 @@ export default function TransactionManager({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{transaction.description}</td>
-                      <td className="px-4 py-3 text-gray-900">
+                      <td>{transaction.description}</td>
+                      <td>
                         {taxCategory ? taxCategory.label : (transaction.category || "-")}
                       </td>
-                      <td className="px-4 py-3 font-bold text-gray-900 tabular-nums">
+                      <td className="font-bold tabular-nums">
                         ₪{formatMoney(transaction.amount)}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 tabular-nums">
+                      <td className="text-text-muted tabular-nums">
                         ₪{formatMoney(transaction.vat_amount)}
                       </td>
                       <td className="px-4 py-3">
@@ -805,7 +819,7 @@ export default function TransactionManager({
                               )}
                             </div>
                           ) : (
-                            <span className="text-gray-400 text-sm">טרם חושב</span>
+                            <span className="text-sm text-text-muted">טרם חושב</span>
                           )
                         ) : (
                           <span className="text-green-700 font-bold tabular-nums">₪{formatMoney(transaction.vat_amount)}</span>
@@ -822,14 +836,14 @@ export default function TransactionManager({
                         <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => handleEdit(transaction)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 p-2 rounded transition-colors"
+                            className="ui-button ui-button-ghost h-9 w-9 rounded p-0 text-primary"
                             title="ערוך עסקה"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDelete(transaction.id, transaction.description)}
-                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded transition-colors"
+                            className="ui-button ui-button-ghost h-9 w-9 rounded p-0 text-danger"
                             title="מחק עסקה"
                           >
                             <Trash2 className="w-4 h-4" />

@@ -58,6 +58,7 @@ export default function TransactionEditor({
   const [rotation, setRotation] = useState(0);
 
   const merchantInputRef = useRef<HTMLInputElement>(null);
+  const formPaneRef = useRef<HTMLDivElement>(null);
 
   // Initialize form fields when transaction changes
   useEffect(() => {
@@ -80,6 +81,17 @@ export default function TransactionEditor({
       }, 100);
     }
   }, [isOpen]);
+
+  // Prevent background page scrolling while editor modal is open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, [isOpen]);
+
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -172,23 +184,32 @@ export default function TransactionEditor({
 
   const documentUrl = transaction.document_path || null;
 
+  const routeWheelToFormPane = (deltaY: number) => {
+    const pane = formPaneRef.current;
+    if (!pane) return false;
+    if (pane.scrollHeight <= pane.clientHeight) return false;
+    const prevScrollTop = pane.scrollTop;
+    pane.scrollTop += deltaY;
+    return pane.scrollTop !== prevScrollTop;
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4">
-      <div className="bg-white rounded-none md:rounded-xl shadow-2xl w-full max-w-7xl h-screen md:h-[90vh] flex flex-col overflow-hidden">
+      <div className="ui-modal flex h-[100dvh] w-full max-w-7xl flex-col overflow-hidden overscroll-contain rounded-none md:h-[90vh] md:rounded-xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 md:p-6 flex items-center justify-between flex-shrink-0">
+        <div className="ui-toolbar flex flex-shrink-0 items-center justify-between p-4 md:p-5">
           <div className="min-w-0">
-            <h2 className="text-lg md:text-2xl font-bold flex items-center gap-2">
-              <FileText className="w-5 h-5 md:w-7 md:h-7 flex-shrink-0" />
+            <h2 className="flex items-center gap-2 text-lg font-bold text-text md:text-2xl">
+              <FileText className="h-5 w-5 flex-shrink-0 text-primary md:h-7 md:w-7" />
               מלא פרטי העסקה
             </h2>
-            <p className="text-blue-100 text-xs md:text-sm mt-0.5 md:mt-1">
+            <p className="mt-0.5 text-xs text-text-muted md:mt-1 md:text-sm">
               עיין בקבלה ומלא את הפרטים החסרים
             </p>
           </div>
           <button
             onClick={onClose}
-            className="flex-shrink-0 text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full transition-colors ml-2"
+            className="ml-2 flex-shrink-0 rounded-full p-2 text-text-muted transition-colors hover:bg-card-muted hover:text-text"
             aria-label="סגור"
           >
             <X className="w-6 h-6" />
@@ -196,9 +217,19 @@ export default function TransactionEditor({
         </div>
 
         {/* Split View Content */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
           {/* LEFT SIDE: Receipt Document */}
-          <div className="w-full md:w-1/2 bg-gray-900 flex flex-col min-h-0 max-h-[35vh] md:max-h-none">
+          <div
+            className="flex max-h-[30vh] w-full flex-col bg-gray-900 md:max-h-none md:min-h-0 md:w-1/2"
+            onWheel={(e) => {
+              // When cursor is over the receipt pane, scroll the form pane instead.
+              if (e.deltaY === 0) return;
+              const forwarded = routeWheelToFormPane(e.deltaY);
+              if (forwarded) {
+                e.preventDefault();
+              }
+            }}
+          >
             {/* Document Controls - Only show for images */}
             {!isPDF && isImage && (
               <div className="bg-gray-800 p-3 flex items-center justify-center gap-2 flex-shrink-0">
@@ -264,9 +295,9 @@ export default function TransactionEditor({
                       />
                     </div>
                   ) : (
-                    <div className="bg-white p-12 rounded-lg shadow-2xl">
+                    <div className="ui-card p-12 shadow-2xl">
                       <FileText className="w-32 h-32 text-gray-400 mx-auto mb-4" />
-                      <p className="text-center text-gray-600 font-medium">
+                      <p className="text-center font-medium text-text-muted">
                         {transaction.document_path?.split(".").pop()?.toUpperCase()} קובץ
                       </p>
                       <a
@@ -281,7 +312,7 @@ export default function TransactionEditor({
                   )}
                 </>
               ) : (
-                <div className="text-center text-gray-400">
+                <div className="text-center text-text-muted">
                   <FileText className="w-24 h-24 mx-auto mb-4 opacity-50" />
                   <p>אין קובץ מצורף</p>
                 </div>
@@ -290,11 +321,17 @@ export default function TransactionEditor({
           </div>
 
           {/* RIGHT SIDE: Form */}
-          <div className="w-full md:w-1/2 bg-gray-50 flex flex-col overflow-hidden min-h-0">
-            <form onSubmit={handleSubmit} className="p-6 space-y-4 flex-1 overflow-y-auto">
+          <div
+            ref={formPaneRef}
+            className="ui-surface relative flex h-full min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain md:w-1/2"
+          >
+            <form
+              onSubmit={handleSubmit}
+              className="flex-1 space-y-4 p-6 pb-28 [touch-action:pan-y] md:pb-6"
+            >
               {/* AI Pre-fill Notice */}
               {aiSuggestedAmount && (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 flex items-center gap-2 text-sm text-purple-800">
+                <div className="ui-notice ui-notice-info flex items-center gap-2">
                   <span>🤖</span>
                   <span>הפרטים מולאו אוטומטית על ידי AI — אנא בדוק ואשר</span>
                 </div>
@@ -302,25 +339,25 @@ export default function TransactionEditor({
 
               {/* Currency Warning */}
               {currencyWarning && (
-                <div className="bg-amber-50 border-2 border-amber-400 rounded-lg px-4 py-3 flex items-center gap-3 text-sm">
+                <div className="ui-notice ui-notice-warning flex items-center gap-3 border-2 px-4 py-3">
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
-                  <span className="text-amber-900 font-semibold">{currencyWarning}</span>
+                  <span className="font-semibold text-text">{currencyWarning}</span>
                 </div>
               )}
 
               {/* Transaction Type Selector */}
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
-                <label className="text-sm font-medium text-gray-700 mb-2 block">
+              <div className="ui-card p-4">
+                <label className="mb-2 block text-sm font-medium text-text">
                   סוג העסקה
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setType("expense")}
-                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 font-medium text-base transition-all ${
+                    className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-base font-medium transition-all ${
                       type === "expense"
-                        ? "bg-red-50 border-red-500 text-red-700 shadow-md"
-                        : "bg-white border-gray-300 text-gray-600 hover:border-red-300 hover:bg-red-50"
+                        ? "border-primary bg-card-muted text-primary shadow-sm"
+                        : "border-border bg-input-bg text-text-muted hover:border-primary/40 hover:bg-card-muted"
                     }`}
                   >
                     <TrendingDown className="w-5 h-5" />
@@ -330,10 +367,10 @@ export default function TransactionEditor({
                   <button
                     type="button"
                     onClick={() => setType("income")}
-                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 font-medium text-base transition-all ${
+                    className={`flex items-center justify-center gap-2 rounded-lg border-2 px-4 py-2.5 text-base font-medium transition-all ${
                       type === "income"
-                        ? "bg-green-50 border-green-500 text-green-700 shadow-md"
-                        : "bg-white border-gray-300 text-gray-600 hover:border-green-300 hover:bg-green-50"
+                        ? "border-primary bg-card-muted text-primary shadow-sm"
+                        : "border-border bg-input-bg text-text-muted hover:border-primary/40 hover:bg-card-muted"
                     }`}
                   >
                     <TrendingUp className="w-5 h-5" />
@@ -344,7 +381,7 @@ export default function TransactionEditor({
 
               {/* Date */}
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
                   <Calendar className="w-4 h-4" />
                   תאריך *
                 </label>
@@ -353,13 +390,13 @@ export default function TransactionEditor({
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   required
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-all"
+                  className="ui-input border-2 px-4 py-3 transition-all"
                 />
               </div>
 
               {/* Merchant/Description */}
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
+                <label className="mb-1 block text-sm font-medium text-text">
                   {type === "income" ? "לקוח / תיאור *" : "ספק / תיאור *"}
                 </label>
                 <input
@@ -373,21 +410,21 @@ export default function TransactionEditor({
                       ? "לדוגמה: תשלום מלקוח ABC"
                       : "לדוגמה: סופר פארם"
                   }
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder:text-gray-400 transition-all"
+                  className="ui-input border-2 px-4 py-3 transition-all"
                 />
               </div>
 
               {/* Category (for expenses only) */}
               {type === "expense" && (
                 <div>
-                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                  <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
                     <Tag className="w-4 h-4" />
                     קטגוריה מס
                   </label>
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 transition-all"
+                    className="ui-input border-2 px-4 py-3 transition-all"
                   >
                     <option value="">בחר קטגוריה...</option>
                     {TAX_CATEGORIES.map((cat) => (
@@ -397,8 +434,8 @@ export default function TransactionEditor({
                     ))}
                   </select>
                   {taxCategory && (
-                    <div className="mt-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <p className="text-xs text-gray-700 flex items-center gap-2">
+                    <div className="ui-notice ui-notice-info mt-2 p-3">
+                      <p className="flex items-center gap-2 text-xs text-text">
                         <AlertCircle className="w-4 h-4 text-blue-600" />
                         <span>
                           ניכוי מע״מ: <strong>{(taxCategory.vatPercentage * 100).toFixed(0)}%</strong> |
@@ -412,19 +449,19 @@ export default function TransactionEditor({
 
               {/* Amount */}
               <div>
-                <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
                   <span className="text-lg font-bold">₪</span>
                   סכום כולל (כולל מע״מ) *
                 </label>
                 {/* AI Suggested Amount Banner */}
                 {aiSuggestedAmount && !amount && (
-                  <div className="mb-2 flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-                    <span className="text-xs text-purple-700 font-medium">🤖 AI זיהה:</span>
-                    <span className="text-sm font-bold text-purple-900">₪{aiSuggestedAmount.toFixed(2)}</span>
+                  <div className="ui-notice ui-notice-info mb-2 flex items-center gap-2">
+                    <span className="text-xs font-medium text-primary">🤖 AI זיהה:</span>
+                    <span className="text-sm font-bold text-text">₪{aiSuggestedAmount.toFixed(2)}</span>
                     <button
                       type="button"
                       onClick={() => setAmount(aiSuggestedAmount.toFixed(2))}
-                      className="mr-auto text-xs bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded font-medium transition-colors"
+                      className="ui-button ui-button-primary mr-auto px-2 py-1 text-xs"
                     >
                       השתמש בסכום זה
                     </button>
@@ -437,23 +474,23 @@ export default function TransactionEditor({
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   placeholder={aiSuggestedAmount ? `AI: ₪${aiSuggestedAmount.toFixed(2)}` : "0.00"}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xl font-bold text-gray-900 placeholder:text-gray-400 transition-all"
+                  className="ui-input border-2 px-4 py-3 text-xl font-bold transition-all"
                 />
               </div>
 
               {/* VAT Preview */}
               {amount && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg p-4">
+                <div className="ui-card-muted border-2 border-blue-200 p-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-600">סכום נטו:</span>
-                      <div className="font-bold text-gray-900 text-lg">
+                      <span className="text-text-muted">סכום נטו:</span>
+                      <div className="text-lg font-bold text-text">
                         ₪{netAmount.toFixed(2)}
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-600">מע״מ (18%):</span>
-                      <div className="font-bold text-gray-900 text-lg">
+                      <span className="text-text-muted">מע״מ (18%):</span>
+                      <div className="text-lg font-bold text-text">
                         ₪{vatAmount.toFixed(2)}
                       </div>
                     </div>
@@ -463,12 +500,12 @@ export default function TransactionEditor({
             </form>
 
             {/* Action Buttons */}
-            <div className="bg-white border-t-2 border-gray-200 p-6 flex gap-3 flex-shrink-0">
+            <div className="sticky bottom-0 z-10 flex flex-shrink-0 gap-3 border-t-2 border-border bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:static md:p-6">
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading || !isFormValid}
-                className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:from-gray-300 disabled:to-gray-400 text-white font-bold py-4 px-6 rounded-lg transition-all duration-200 transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+                className="ui-button ui-button-primary flex-1 px-6 py-3.5 text-base font-semibold disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Save className="w-5 h-5" />
                 {loading ? "שומר..." : "שמור וסיים"}
@@ -476,7 +513,7 @@ export default function TransactionEditor({
               <button
                 type="button"
                 onClick={handleDelete}
-                className="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="ui-button ui-button-danger px-6 py-3.5 font-semibold"
                 title="מחק טיוטה"
               >
                 <Trash2 className="w-5 h-5" />

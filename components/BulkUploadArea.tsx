@@ -276,7 +276,7 @@ export default function BulkUploadArea({
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div id="bulk-upload" className="max-w-6xl mx-auto mb-6 scroll-mt-24">
+    <div id="bulk-upload" className="mx-auto mb-8 max-w-6xl scroll-mt-24">
       {/* Drop Zone */}
       <div
         onDrop={handleDrop}
@@ -284,40 +284,40 @@ export default function BulkUploadArea({
         onDragLeave={handleDragLeave}
         onClick={() => fileInputRef.current?.click()}
         className={`
-          relative cursor-pointer select-none rounded-xl border-2 border-dashed p-8 text-center
+          relative cursor-pointer select-none rounded-xl border border-dashed p-6 text-center
           transition-all duration-200
           ${
             isDragging
-              ? "scale-[1.01] border-blue-400 bg-blue-50 shadow-lg dark:border-blue-500 dark:bg-blue-950/50"
-              : "border-gray-300 bg-white hover:border-green-400 hover:bg-green-50 dark:border-gray-600 dark:bg-gray-900 dark:hover:border-green-500 dark:hover:bg-green-950/30"
+              ? "scale-[1.005] border-primary bg-card-muted shadow-md"
+              : "border-border bg-card hover:border-primary/50 hover:bg-card-muted"
           }
         `}
       >
         <div className="flex flex-col items-center gap-3 pointer-events-none">
           <div
-            className={`rounded-full p-4 transition-colors ${
-              isDragging ? "bg-blue-100 dark:bg-blue-900/60" : "bg-gray-100 dark:bg-gray-800"
+            className={`rounded-full p-3 transition-colors ${
+              isDragging ? "bg-card-muted" : "bg-card-muted"
             }`}
           >
             <CloudUpload
               className={`w-10 h-10 transition-colors ${
-                isDragging ? "text-blue-500" : "text-gray-400"
+                isDragging ? "text-primary" : "text-text-muted"
               }`}
             />
           </div>
 
           <div>
-            <p className="text-xl font-bold text-gray-800 dark:text-gray-100">
+            <p className="text-lg font-semibold text-text">
               {isDragging ? "שחרר קבלות כאן 📂" : "גרור קבלות לכאן"}
             </p>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm text-text-muted">
               {activeCount > 0
                 ? `מעבד ${activeCount} קבצים...`
                 : "או לחץ לבחירת קבצים • JPG, PNG, PDF • עד 5MB לקובץ"}
             </p>
           </div>
 
-          <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-500">
+          <div className="ui-chip flex items-center gap-2 rounded-full px-3 py-1.5 text-xs">
             <span>🤖</span>
             <span>AI יזהה ספק, תאריך וסכום אוטומטית</span>
           </div>
@@ -335,13 +335,13 @@ export default function BulkUploadArea({
 
       {/* Per-file Progress List */}
       {hasItems && (
-        <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+        <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {/* List header */}
-          <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800">
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <div className="flex items-center justify-between border-b border-border bg-card-muted px-4 py-2.5">
+            <span className="text-sm font-semibold text-text">
               {fileItems.length} {fileItems.length === 1 ? "קובץ" : "קבצים"}
               {activeCount > 0 && (
-                <span className="mr-2 text-blue-600 font-normal">
+                <span className="mr-2 font-normal text-primary">
                   ({activeCount} בעיבוד)
                 </span>
               )}
@@ -352,7 +352,7 @@ export default function BulkUploadArea({
                   e.stopPropagation();
                   clearDone();
                 }}
-                className="text-xs text-gray-400 transition-colors hover:text-gray-700 dark:hover:text-gray-300"
+                className="text-xs text-text-muted transition-colors hover:text-text"
               >
                 נקה שהסתיימו
               </button>
@@ -360,7 +360,7 @@ export default function BulkUploadArea({
           </div>
 
           {/* File rows */}
-          <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-700">
+          <ul className="max-h-72 divide-y divide-border overflow-y-auto">
             {fileItems.map((item) => (
               <li
                 key={item.id}
@@ -375,17 +375,17 @@ export default function BulkUploadArea({
                 }`}
               >
                 {/* File type icon */}
-                <div className="flex-shrink-0 text-gray-400">
+                <div className="flex-shrink-0 text-text-muted">
                   {/\.(jpg|jpeg|png|gif|webp)$/i.test(item.name) ? (
-                    <FileImage className="w-5 h-5 text-blue-400" />
+                    <FileImage className="h-5 w-5 text-primary" />
                   ) : (
-                    <FileText className="w-5 h-5 text-red-400" />
+                    <FileText className="h-5 w-5 text-text-muted" />
                   )}
                 </div>
 
                 {/* Filename + status text */}
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-200">
+                  <p className="truncate text-sm font-medium text-text">
                     {item.name}
                   </p>
                   <p
@@ -396,7 +396,7 @@ export default function BulkUploadArea({
                         ? "text-amber-700"
                         : item.status === "failed"
                         ? "text-red-600"
-                        : "text-blue-600"
+                        : "text-primary"
                     }`}
                   >
                     {item.statusText}
@@ -432,7 +432,7 @@ export default function BulkUploadArea({
                         e.stopPropagation();
                         removeItem(item.id);
                       }}
-                      className="ml-1 text-gray-300 transition-colors hover:text-gray-600 dark:text-gray-600 dark:hover:text-gray-300"
+                      className="ml-1 text-text-muted transition-colors hover:text-text"
                       title="הסר"
                     >
                       <X className="w-4 h-4" />

@@ -24,6 +24,7 @@ import BulkUploadArea from "@/components/BulkUploadArea";
 import AIChat from "@/components/AIChat";
 import ReportIssueFAB from "@/components/ReportIssueFAB";
 import ThemeToggle from "@/components/ThemeToggle";
+import HelpTooltip from "@/components/HelpTooltip";
 import { formatMoney } from "@/lib/utils";
 import { getVatPeriodDateBoundsFromMonthParam } from "@/lib/fiscal-utils";
 
@@ -491,18 +492,18 @@ export default function HomeContent() {
 
   return (
     <>
-      <div className="min-h-screen bg-gray-50 p-4 pb-24 md:p-8 dark:bg-gray-950">
+      <div className="ui-surface min-h-screen p-4 pb-24 md:p-8">
         {/* Header */}
-        <div className="mx-auto mb-6 max-w-6xl px-4 md:px-0">
-          <div className="rounded-lg bg-gradient-to-l from-blue-600 to-blue-700 p-6 text-white shadow-md dark:from-blue-800 dark:to-blue-950">
+        <div className="mx-auto mb-8 max-w-6xl px-4 md:px-0">
+          <div className="rounded-lg border border-blue-500/30 bg-gradient-to-l from-blue-600 to-blue-700 p-5 text-white shadow-sm dark:border-blue-900/70 dark:from-blue-900 dark:to-blue-950 md:p-6">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 md:gap-4 min-w-0">
-                <Receipt className="w-8 h-8 md:w-12 md:h-12 flex-shrink-0" />
+                <Receipt className="h-8 w-8 flex-shrink-0 text-blue-100 md:h-12 md:w-12" />
                 <div className="min-w-0">
-                  <h1 className="text-base md:text-3xl font-bold leading-tight truncate">
+                  <h1 className="truncate text-base font-bold leading-tight md:text-3xl">
                     ניהול מע״מ - עוסק מורשה
                   </h1>
-                  <p className="text-blue-100 text-xs md:text-base">
+                  <p className="text-xs text-blue-100 md:text-base">
                     מערכת לניהול דו״חות מע״מ דו-חודשיים
                   </p>
                 </div>
@@ -515,11 +516,7 @@ export default function HomeContent() {
                     <User className="w-4 h-4" />
                     <span>{user?.name || "משתמש"}</span>
                   </div>
-                  {user?.business_name && (
-                    <p className="text-xs text-blue-200 mt-1">
-                      {user.business_name}
-                    </p>
-                  )}
+                  {user?.business_name && <p className="mt-1 text-xs text-blue-200">{user.business_name}</p>}
                 </div>
 
                 <ThemeToggle />
@@ -527,7 +524,7 @@ export default function HomeContent() {
                 {/* Settings Button */}
                 <button
                   onClick={() => router.push("/settings")}
-                  className="flex items-center gap-1 rounded-lg bg-blue-500 px-2 py-2 text-sm font-medium transition-colors hover:bg-blue-400 md:gap-2 md:px-4 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  className="ui-button ui-button-primary gap-1 px-2 py-2 text-sm md:gap-2 md:px-4"
                   title="הגדרות"
                 >
                   <Settings className="w-4 h-4" />
@@ -537,7 +534,7 @@ export default function HomeContent() {
                 {user?.is_admin && (
                   <Link
                     href="/admin"
-                    className="flex items-center gap-1 rounded-lg bg-indigo-500 px-2 py-2 text-sm font-medium transition-colors hover:bg-indigo-400 md:gap-2 md:px-4 dark:bg-indigo-600 dark:hover:bg-indigo-500"
+                    className="ui-button ui-button-ghost gap-1 px-2 py-2 text-sm text-primary md:gap-2 md:px-4"
                     title="ניהול"
                   >
                     <LayoutDashboard className="w-4 h-4" />
@@ -547,7 +544,7 @@ export default function HomeContent() {
 
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1 rounded-lg bg-blue-500 px-2 py-2 text-sm font-medium transition-colors hover:bg-blue-400 md:gap-2 md:px-4 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  className="ui-button ui-button-ghost gap-1 px-2 py-2 text-sm md:gap-2 md:px-4"
                   title="התנתקות"
                 >
                   <LogOut className="w-4 h-4" />
@@ -556,15 +553,15 @@ export default function HomeContent() {
               </div>
             </div>
 
-            <div className="flex gap-6 mt-4 text-sm flex-wrap">
-              <span className="bg-blue-500 bg-opacity-50 px-3 py-1 rounded">
+            <div className="mt-4 flex flex-wrap gap-3 text-sm">
+              <span className="ui-chip px-3 py-1 text-text">
                 שיעור מע״מ: 18%
               </span>
-              <span className="bg-blue-500 bg-opacity-50 px-3 py-1 rounded">
+              <span className="ui-chip px-3 py-1 text-text">
                 תדירות דיווח: דו-חודשי
               </span>
               {user?.dealer_number && (
-                <span className="bg-blue-500 bg-opacity-50 px-3 py-1 rounded">
+                <span className="ui-chip px-3 py-1 text-text">
                   מספר עוסק: {user.dealer_number}
                 </span>
               )}
@@ -574,75 +571,75 @@ export default function HomeContent() {
 
         {/* Getting Started — hidden permanently after success + localStorage */}
         {onboardingLSReady && (onboardingPhase === "tasks" || onboardingPhase === "success") && (
-          <div className="mx-auto mb-6 max-w-6xl px-4 md:px-0">
-            <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm dark:border-blue-800 dark:from-blue-950/60 dark:to-gray-900 md:p-6">
+          <div className="mx-auto mb-8 max-w-6xl px-4 md:px-0">
+            <div className="ui-toolbar rounded-xl p-5 md:p-6">
               {onboardingPhase === "success" ? (
                 <div className="py-2 text-center md:text-start">
-                  <p className="text-base font-semibold text-gray-900 dark:text-gray-100 md:text-lg">
+                  <p className="text-base font-semibold text-text md:text-lg">
                     You are all set! App is ready for work.
                   </p>
                 </div>
               ) : (
                 <>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 md:text-xl">מתחילים</h2>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  <h2 className="text-lg font-bold text-text md:text-xl">מתחילים</h2>
+                  <p className="mt-1 text-sm text-text-muted">
                     השלם את שלושת השלבים כדי להפיק את המירב מהמערכת.
                   </p>
                   <ul className="mt-4 space-y-3">
-                    <li className="flex gap-3 rounded-lg bg-white/80 p-3 ring-1 ring-gray-100">
+                    <li className="ui-card flex gap-3 bg-card/80 p-3 ring-1 ring-border">
                       {whatsappConnected ? (
                         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
                       ) : (
                         <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" aria-hidden />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900">חבר את WhatsApp</p>
-                        <p className="text-sm text-gray-600">
+                        <p className="font-medium text-text">חבר את WhatsApp</p>
+                        <p className="text-sm text-text-muted">
                           בהגדרות — הוסף מספר (או מספר שני) לשליחת קבלות.
                         </p>
                         <button
                           type="button"
                           onClick={() => router.push("/settings")}
-                          className="mt-2 text-sm font-medium text-blue-700 hover:underline dark:text-blue-400"
+                          className="ui-button ui-button-ghost mt-2 h-auto border-0 bg-transparent px-0 py-0 text-sm text-primary hover:bg-transparent hover:underline"
                         >
                           פתח הגדרות
                         </button>
                       </div>
                     </li>
-                    <li className="flex gap-3 rounded-lg bg-white/80 p-3 ring-1 ring-gray-100 dark:bg-gray-800/80 dark:ring-gray-700">
+                    <li className="ui-card flex gap-3 bg-card/80 p-3 ring-1 ring-border">
                       {firstReceiptDone ? (
                         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
                       ) : (
                         <Circle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 dark:text-gray-100">שלח את הקבלה הראשונה</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <p className="font-medium text-text">שלח את הקבלה הראשונה</p>
+                        <p className="text-sm text-text-muted">
                           העלה קובץ או גרור לאזור ההעלאה למטה.
                         </p>
                         <a
                           href="#bulk-upload"
-                          className="mt-2 inline-block text-sm font-medium text-blue-700 hover:underline dark:text-blue-400"
+                          className="ui-button ui-button-ghost mt-2 inline-block h-auto border-0 bg-transparent px-0 py-0 text-sm text-primary hover:bg-transparent hover:underline"
                         >
                           קפוץ להעלאה
                         </a>
                       </div>
                     </li>
-                    <li className="flex gap-3 rounded-lg bg-white/80 p-3 ring-1 ring-gray-100 dark:bg-gray-800/80 dark:ring-gray-700">
+                    <li className="ui-card flex gap-3 bg-card/80 p-3 ring-1 ring-border">
                       {businessVerified ? (
                         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-green-600" aria-hidden />
                       ) : (
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-purple-600 opacity-60" aria-hidden />
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary opacity-60" aria-hidden />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 dark:text-gray-100">אמת פרטי עסק</p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <p className="font-medium text-text">אמת פרטי עסק</p>
+                        <p className="text-sm text-text-muted">
                           שם עסק, סוג עוסק ומספר עוסק מול רשויות המס.
                         </p>
                         <button
                           type="button"
                           onClick={() => router.push("/settings")}
-                          className="mt-2 text-sm font-medium text-blue-700 hover:underline dark:text-blue-400"
+                          className="ui-button ui-button-ghost mt-2 h-auto border-0 bg-transparent px-0 py-0 text-sm text-primary hover:bg-transparent hover:underline"
                         >
                           עדכן בפרופיל
                         </button>
@@ -656,76 +653,89 @@ export default function HomeContent() {
         )}
 
         {/* Dashboard Stats Cards */}
-        <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
+        <div className="mx-auto mb-9 max-w-6xl px-4 md:px-0">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             {/* Total Income */}
-            <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-md sm:p-6 dark:border-gray-800 dark:bg-gray-900 border-t-4 border-t-green-500">
+            <div className="ui-card p-5 sm:p-6">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 sm:text-sm">סך הכנסות</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-gray-900 dark:text-gray-100 sm:text-2xl">
+                  <p className="text-xs font-medium text-text-muted sm:text-sm">סך הכנסות</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-text sm:text-2xl">
                     {loadingStats ? "..." : `₪${formatMoney(stats.totalIncome)}`}
                   </p>
-                  <p className="mt-1 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs tabular-nums text-text-muted">
                     מע״מ: ₪{formatMoney(stats.incomeVAT)}
                   </p>
                 </div>
-                <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/40">
-                  <TrendingUp className="w-6 h-6 text-green-600" />
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </div>
 
             {/* Total Expenses */}
-            <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-md sm:p-6 dark:border-gray-800 dark:bg-gray-900 border-t-4 border-t-red-500">
+            <div className="ui-card p-5 sm:p-6">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 sm:text-sm">סך הוצאות</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-gray-900 dark:text-gray-100 sm:text-2xl">
+                  <p className="text-xs font-medium text-text-muted sm:text-sm">סך הוצאות</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-text sm:text-2xl">
                     {loadingStats ? "..." : `₪${formatMoney(stats.totalExpenses)}`}
                   </p>
-                  <p className="mt-1 text-xs tabular-nums text-gray-500 dark:text-gray-400">
-                    מע״מ: ₪{formatMoney(stats.expenseVAT)}
+                  <p className="mt-1 flex items-center gap-1 text-xs tabular-nums text-text-muted">
+                    <span>מע״מ מוכר: ₪{formatMoney(stats.expenseVAT)}</span>
+                    <HelpTooltip text="זה המע״מ על הוצאות שהמדינה מאפשרת לך לקזז." label="מה זה מע״מ מוכר" />
                   </p>
                 </div>
-                <div className="rounded-full bg-red-100 p-3 dark:bg-red-900/40">
-                  <TrendingDown className="w-6 h-6 text-red-600" />
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <TrendingDown className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </div>
 
             {/* Net Profit */}
-            <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-md sm:p-6 dark:border-gray-800 dark:bg-gray-900 border-t-4 border-t-blue-500">
+            <div className="ui-card p-5 sm:p-6">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 sm:text-sm">רווח נקי</p>
+                  <p className="flex items-center gap-1 text-xs font-medium text-text-muted sm:text-sm">
+                    <span>רווח נקי</span>
+                    <HelpTooltip
+                      text="זה מה שנשאר לך מהעסק אחרי שמפחיתים את ההוצאות מההכנסות."
+                      label="מה זה רווח נקי"
+                    />
+                  </p>
                   <p className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {loadingStats ? "..." : `₪${formatMoney(stats.netProfit)}`}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-text-muted">
                     הכנסות - הוצאות
                   </p>
                 </div>
-                <div className="rounded-full bg-blue-100 p-3 dark:bg-blue-900/40">
-                  <DollarSign className="w-6 h-6 text-blue-600" />
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <DollarSign className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </div>
 
             {/* VAT to Pay */}
-            <div className="rounded-lg border border-gray-100 bg-white p-4 shadow-md sm:p-6 dark:border-gray-800 dark:bg-gray-900 border-t-4 border-t-purple-500">
+            <div className="ui-card p-5 sm:p-6">
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 sm:text-sm">מע״מ לתשלום</p>
-                  <p className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${stats.vatToPay >= 0 ? 'text-purple-600' : 'text-green-600'}`}>
+                  <p className="flex items-center gap-1 text-xs font-medium text-text-muted sm:text-sm">
+                    <span>מע״מ לתשלום</span>
+                    <HelpTooltip
+                      text="זה הסכום שצפוי לשלם במע״מ אחרי קיזוז ההוצאות המוכרות."
+                      label="מה זה מע״מ לתשלום"
+                    />
+                  </p>
+                  <p className={`mt-1 text-xl font-bold tabular-nums sm:text-2xl ${stats.vatToPay >= 0 ? 'text-danger' : 'text-success'}`}>
                     {loadingStats ? "..." : `₪${formatMoney(stats.vatToPay)}`}
                   </p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-text-muted">
                     {stats.vatToPay >= 0 ? 'חובה' : 'זכאות להחזר'}
                   </p>
                 </div>
-                <div className="rounded-full bg-purple-100 p-3 dark:bg-purple-900/40">
-                  <Receipt className="w-6 h-6 text-purple-600" />
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <Receipt className="h-6 w-6 text-primary" />
                 </div>
               </div>
             </div>
@@ -742,7 +752,7 @@ export default function HomeContent() {
         />
 
         {/* Drafts Inbox - Pending Receipts */}
-        <div className="max-w-6xl mx-auto mb-6 px-4 md:px-0">
+        <div className="mx-auto mb-8 max-w-6xl px-4 md:px-0">
           <DraftsInbox
             onReviewDraft={handleReviewDraft}
             onRefreshNeeded={triggerRefresh}
@@ -783,7 +793,7 @@ export default function HomeContent() {
           role="status"
           aria-live="polite"
         >
-          <div className="rounded-full bg-gray-900 px-5 py-3 text-sm font-medium text-white shadow-lg">
+          <div className="ui-card rounded-full bg-card px-5 py-3 text-sm font-medium shadow-lg">
             {toastMessage}
           </div>
         </div>

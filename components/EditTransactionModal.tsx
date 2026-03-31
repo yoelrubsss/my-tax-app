@@ -104,13 +104,13 @@ export default function EditTransactionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="ui-modal max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">ערוך עסקה</h2>
+        <div className="flex items-center justify-between border-b border-border p-6">
+          <h2 className="text-2xl font-bold text-text">ערוך עסקה</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-text-muted transition-colors hover:text-text"
             aria-label="סגור"
           >
             <X className="w-6 h-6" />
@@ -120,12 +120,12 @@ export default function EditTransactionModal({
         {/* FIX #2: Receipt Preview with Image Thumbnail or PDF Link */}
         {transaction.document_path && (
           <div className="px-6 pt-4 pb-2">
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+            <div className="ui-card-muted border border-blue-200 p-3">
               {/* Check if it's an image or PDF */}
               {transaction.document_path.match(/\.(jpg|jpeg|png|gif|webp)($|\?)/i) ? (
                 // Image Preview
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                  <p className="flex items-center gap-2 text-sm font-medium text-text">
                     <FileText className="w-5 h-5 text-blue-600" />
                     קבלה מצורפת
                   </p>
@@ -138,7 +138,7 @@ export default function EditTransactionModal({
                     <img
                       src={transaction.document_path}
                       alt="Receipt preview"
-                      className="w-full max-w-md mx-auto rounded border border-gray-300 hover:border-blue-500 transition-colors cursor-pointer"
+                      className="mx-auto w-full max-w-md cursor-pointer rounded border border-border transition-colors hover:border-blue-500"
                     />
                   </a>
                   <p className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 justify-center">
@@ -151,7 +151,7 @@ export default function EditTransactionModal({
                 <div className="flex items-center gap-3">
                   <FileText className="w-5 h-5 text-blue-600" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">קובץ מצורף</p>
+                    <p className="text-sm font-medium text-text">קובץ מצורף</p>
                     <a
                       href={transaction.document_path}
                       target="_blank"
@@ -165,7 +165,7 @@ export default function EditTransactionModal({
                 </div>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="mt-2 text-xs text-text-muted">
               💡 הקובץ המצורף יישמר אוטומטית ולא יימחק בעדכון
             </p>
           </div>
@@ -175,7 +175,7 @@ export default function EditTransactionModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Date */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
               <Calendar className="w-4 h-4" />
               תאריך
             </label>
@@ -184,13 +184,13 @@ export default function EditTransactionModal({
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+              className="ui-input"
             />
           </div>
 
           {/* Merchant/Description */}
           <div>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">
+            <label className="mb-1 block text-sm font-medium text-text">
               {transaction.type === "income" ? "לקוח / תיאור" : "ספק / תיאור"}
             </label>
             <input
@@ -203,21 +203,21 @@ export default function EditTransactionModal({
                   ? "לדוגמה: תשלום מלקוח ABC"
                   : "לדוגמה: קניית ציוד משרדי"
               }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder:text-gray-400"
+              className="ui-input"
             />
           </div>
 
           {/* Category (for expenses only) */}
           {transaction.type === "expense" && (
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+              <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
                 <Tag className="w-4 h-4" />
                 קטגוריה מס
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                className="ui-input"
               >
                 <option value="">בחר קטגוריה...</option>
                 {TAX_CATEGORIES.map((cat) => (
@@ -227,7 +227,7 @@ export default function EditTransactionModal({
                 ))}
               </select>
               {taxCategory && (
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="mt-1 text-xs text-text-muted">
                   ניכוי מע״מ: {(taxCategory.vatPercentage * 100).toFixed(0)}% |
                   הכרה למס הכנסה: {(taxCategory.incomeTaxRecognition * 100).toFixed(0)}%
                 </p>
@@ -237,7 +237,7 @@ export default function EditTransactionModal({
 
           {/* Amount */}
           <div>
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+            <label className="mb-1 flex items-center gap-2 text-sm font-medium text-text">
               <span className="text-lg font-bold">₪</span>
               סכום כולל (כולל מע״מ)
             </label>
@@ -248,23 +248,23 @@ export default function EditTransactionModal({
               onChange={(e) => setAmount(e.target.value)}
               required
               placeholder="0.00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg font-semibold text-gray-900 placeholder:text-gray-400"
+              className="ui-input text-lg font-semibold"
             />
           </div>
 
           {/* VAT Preview */}
           {amount && (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div className="ui-card-muted border border-blue-200 p-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">סכום נטו:</span>
-                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                  <span className="text-text-muted">סכום נטו:</span>
+                  <span className="mr-2 font-bold tabular-nums text-text">
                     ₪{formatMoney(netAmount)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600">מע״מ (18%):</span>
-                  <span className="font-bold text-gray-900 mr-2 tabular-nums">
+                  <span className="text-text-muted">מע״מ (18%):</span>
+                  <span className="mr-2 font-bold tabular-nums text-text">
                     ₪{formatMoney(vatAmount)}
                   </span>
                 </div>
@@ -285,7 +285,7 @@ export default function EditTransactionModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md font-medium transition-colors"
+              className="rounded-md bg-card-muted px-6 py-3 font-medium text-text transition-colors hover:opacity-90"
             >
               ביטול
             </button>
