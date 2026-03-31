@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth-server";
 import { isAdminUser } from "@/lib/admin";
+import AdminUsersTable from "@/components/AdminUsersTable";
 
 function startOfTodayUtc(): Date {
   const d = new Date();
@@ -30,25 +31,46 @@ export default async function AdminPage() {
     redirect("/");
   }
 
-  const [totalUsers, receiptsScannedToday, latestFeedback] = await Promise.all([
-    prisma.user.count(),
-    prisma.transaction.count({
-      where: {
-        createdAt: { gte: startOfTodayUtc() },
-        AND: [
-          { receiptUrl: { not: null } },
-          { receiptUrl: { not: "" } },
-        ],
-      },
-    }),
-    prisma.feedbackLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 30,
-      include: {
-        user: { select: { email: true } },
-      },
-    }),
-  ]);
+  const [totalUsers, receiptsScannedToday, latestFeedback, allUsers] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.transaction.count({
+        where: {
+          createdAt: { gte: startOfTodayUtc() },
+          AND: [
+            { receiptUrl: { not: null } },
+            { receiptUrl: { not: "" } },
+          ],
+        },
+      }),
+      prisma.feedbackLog.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 30,
+        include: {
+          user: { select: { email: true } },
+        },
+      }),
+      prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          whatsappPhone: true,
+          whatsappPhone2: true,
+          createdAt: true,
+          _count: { select: { transactions: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+  const adminUserRows = allUsers.map((u) => ({
+    id: u.id,
+    email: u.email,
+    whatsappPhone: u.whatsappPhone,
+    whatsappPhone2: u.whatsappPhone2,
+    createdAt: u.createdAt.toISOString(),
+    transactionCount: u._count.transactions,
+  }));
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -76,6 +98,14 @@ export default async function AdminPage() {
             <p className="text-sm font-medium text-gray-500">קבלות נסרקו היום (עסקאות עם קובץ)</p>
             <p className="mt-2 text-3xl font-bold text-gray-900">{receiptsScannedToday}</p>
           </div>
+        </div>
+
+        <div className="mb-8 rounded-xl bg-white p-6 shadow ring-1 ring-gray-100">
+          <h2 className="mb-2 text-lg font-semibold text-gray-900">כל המשתמשים</h2>
+          <p className="mb-4 text-sm text-gray-600">
+            זיהוי כפילויות (אימייל / WhatsApp), ספירת עסקאות ומחיקת חשבונות בדיקה.
+          </p>
+          <AdminUsersTable users={adminUserRows} currentAdminId={userId} />
         </div>
 
         <div className="rounded-xl bg-white p-6 shadow ring-1 ring-gray-100">

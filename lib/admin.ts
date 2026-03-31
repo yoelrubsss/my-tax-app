@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/prisma";
+
 /**
  * Admin access for /admin and internal dashboards.
  * Set ADMIN_EMAIL (lowercase match) and/or comma-separated ADMIN_USER_IDS in env.
@@ -12,4 +14,13 @@ export function isAdminUser(email: string, userId: string): boolean {
     return true;
   }
   return false;
+}
+
+/** Returns true if the user exists and is an admin (for API routes after requireAuth). */
+export async function assertIsAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  return !!(user && isAdminUser(user.email, userId));
 }
