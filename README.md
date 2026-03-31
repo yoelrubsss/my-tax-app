@@ -100,6 +100,10 @@ my-tax-app/
 └── system_rules.md    # System guidelines
 ```
 
+## Documentation - תיעוד
+
+- **`ARCHITECTURE.md`** — Current system layout, data flow, and **AI & logic**: chat uses a consolidated **`AI_KNOWLEDGE_BASE`** in **`lib/ai-knowledge.ts`** (no `lib/tax-regulations.ts`). Category/VAT math for transactions remains in **`lib/tax-knowledge.ts`**.
+
 ## Notes - הערות
 
 - האפליקציה מיועדת לעוסק מורשה בישראל

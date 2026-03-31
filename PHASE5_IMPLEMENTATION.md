@@ -6,7 +6,7 @@ Phase 5 introduces **Retrieval-Augmented Generation (RAG)** to the AI Accountant
 1. **User Profiling**: Comprehensive business and personal context
 2. **Transaction History**: Last 20 transactions for pattern recognition
 3. **Conversation Memory**: Last 10 chat messages for context continuity
-4. **Legal Grounding**: Official Israeli tax regulations as source of truth
+4. **Legal Grounding**: Consolidated advisory rules in `lib/ai-knowledge.ts` (`AI_KNOWLEDGE_BASE`) plus per-user context
 
 ---
 
@@ -33,25 +33,19 @@ Phase 5 introduces **Retrieval-Augmented Generation (RAG)** to the AI Accountant
 
 ---
 
-### 2. Legal Knowledge Base ✅
+### 2. Chat Knowledge Base ✅
 
-#### File: `lib/tax-regulations.ts`
+#### File: `lib/ai-knowledge.ts`
 
 **Contains:**
-- VAT Regulations (Ma'am) - Regulations 13-16
-- Income Tax Ordinance - Section 17, depreciation, mixed expenses
-- Tax Credits (Nekudot Zikuy) - Resident, academic, children
+- **`AI_KNOWLEDGE_BASE`** — Consolidated system prompt for the chat model (Tachles tone, 2026 VAT framing). Replaces the old split between a large knowledge blob and **`lib/tax-regulations.ts`** (removed).
+- **`FAQ_QUICK_ANSWERS`** — Client-side quick replies in `AIChat` before `/api/chat`.
 
-**Key Rules:**
-- Osek Patur CANNOT reclaim VAT
-- Vehicle expenses: 2/3 VAT for business use >50%
-- Home office: 20-25% proportional recognition
-- Gifts: Max 210 ILS per person/year
-- Restaurant meals: NOT recognized
+**Key rules:** See source file for authoritative wording (Osek Patur, tax invoice vs receipt, allocation thresholds, category reclaim summaries).
 
 ---
 
-### 3. RAG-Powered Chat API ✅
+### 3. Contextual Chat API ✅
 
 #### File: `app/api/chat/route.ts`
 
@@ -67,11 +61,10 @@ Phase 5 introduces **Retrieval-Augmented Generation (RAG)** to the AI Accountant
    - Includes business type, home office status, children count
    - Shows recent transaction patterns
 
-3. **Enhanced System Prompt**:
-   - Combines existing AI knowledge base
-   - Adds Israeli tax law context
-   - Injects personalized user context
-   - Provides specific instructions for personalization
+3. **System prompt**:
+   - `AI_KNOWLEDGE_BASE` from `lib/ai-knowledge.ts`
+   - Injects personalized user context (`formattedContext`)
+   - No separate `tax-regulations` import (removed)
 
 4. **Message Persistence** (`saveChatMessage`):
    - Saves all user and assistant messages to database
@@ -111,12 +104,11 @@ my-tax-app/
 │   └── schema.prisma          # Database schema (NEW)
 ├── lib/
 │   ├── prisma.ts              # Prisma client singleton (NEW)
-│   ├── tax-regulations.ts     # Israeli tax law context (NEW)
-│   └── ai-knowledge.ts        # Existing AI knowledge base
+│   └── ai-knowledge.ts        # Consolidated AI_KNOWLEDGE_BASE + FAQ (chat)
 ├── app/
 │   └── api/
 │       └── chat/
-│           └── route.ts       # RAG-powered chat API (UPGRADED)
+│           └── route.ts       # Gemini + AI_KNOWLEDGE_BASE + user context (streaming)
 ├── scripts/
 │   └── seed-test-data.ts      # Database seed script (NEW)
 ├── .env                       # Prisma DATABASE_URL (NEW)
@@ -309,7 +301,7 @@ model ChatMessage {
 - Detects spending patterns and anomalies
 
 ### 3. Legal Accuracy
-- Grounded in official Israeli tax regulations
+- Grounded in consolidated `AI_KNOWLEDGE_BASE` (`lib/ai-knowledge.ts`) plus user context
 - Cites specific regulation numbers
 - Conservative approach to compliance
 

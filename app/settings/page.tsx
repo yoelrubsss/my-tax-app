@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { User as UserIcon, Building2, Home, Users, Car, Save, ArrowRight, Phone, QrCode, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface SettingsForm {
   businessName: string;
@@ -192,46 +193,49 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600">טוען הגדרות...</p>
+          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
+          <p className="text-gray-600 dark:text-gray-400">טוען הגדרות...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+    <div className="min-h-screen bg-gray-50 p-4 dark:bg-gray-950 md:p-8">
       {/* Header */}
-      <div className="max-w-3xl mx-auto mb-6">
+      <div className="mx-auto mb-6 max-w-3xl">
         <button
           onClick={() => router.push("/")}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 mb-4 transition-colors"
+          className="mb-4 flex items-center gap-2 text-blue-600 transition-colors hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
         >
-          <ArrowRight className="w-5 h-5" />
+          <ArrowRight className="h-5 w-5" />
           חזרה לדף הראשי
         </button>
 
-        <div className="bg-gradient-to-l from-blue-600 to-blue-700 rounded-lg shadow-md p-6 text-white">
-          <div className="flex items-center gap-4">
-            <UserIcon className="w-10 h-10" />
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold">הגדרות פרופיל</h1>
-              <p className="text-blue-100 text-sm md:text-base mt-1">
-                עדכן את הפרטים שלך לשיפור דיוק המערכת
-              </p>
+        <div className="rounded-lg bg-gradient-to-l from-blue-600 to-blue-700 p-6 text-white shadow-md dark:from-blue-800 dark:to-blue-950">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <UserIcon className="h-10 w-10" />
+              <div>
+                <h1 className="text-2xl font-bold md:text-3xl">הגדרות פרופיל</h1>
+                <p className="mt-1 text-sm text-blue-100 md:text-base">
+                  עדכן את הפרטים שלך לשיפור דיוק המערכת
+                </p>
+              </div>
             </div>
+            <ThemeToggle />
           </div>
         </div>
       </div>
 
       {/* Settings Form */}
-      <div className="max-w-3xl mx-auto">
+      <div className="mx-auto max-w-3xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Business Name */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+            <label className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
               <Building2 className="w-5 h-5 text-blue-600" />
               שם העסק
             </label>
@@ -248,7 +252,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Business Type */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
               <Building2 className="w-5 h-5 text-blue-600" />
               סוג העסק
@@ -273,7 +277,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Home Office */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
                 <Home className="w-5 h-5 text-blue-600 mt-1" />
@@ -305,7 +309,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Children */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-start gap-3">
                 <Users className="w-5 h-5 text-blue-600 mt-1" />
@@ -352,7 +356,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Vehicle */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
                 <Car className="w-5 h-5 text-blue-600 mt-1" />
@@ -384,7 +388,7 @@ export default function SettingsPage() {
           </div>
 
           {/* WhatsApp Integration */}
-          <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
             <div className="flex items-start gap-3 mb-4">
               <Phone className="w-5 h-5 text-green-600 mt-1" />
               <div className="flex-1">

@@ -88,13 +88,13 @@ export default function DraftsInbox({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <div className="animate-pulse flex space-x-4">
+      <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-900">
+        <div className="flex animate-pulse space-x-4">
           <div className="flex-1 space-y-4 py-1">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700"></div>
             <div className="space-y-2">
-              <div className="h-4 bg-gray-200 rounded"></div>
-              <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+              <div className="h-4 rounded bg-gray-200 dark:bg-gray-700"></div>
+              <div className="h-4 w-5/6 rounded bg-gray-200 dark:bg-gray-700"></div>
             </div>
           </div>
         </div>
@@ -105,15 +105,15 @@ export default function DraftsInbox({
   // Empty state
   if (drafts.length === 0) {
     return (
-      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border-2 border-green-200 p-8">
+      <div className="rounded-lg border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50 p-8 dark:border-green-800 dark:from-green-950/40 dark:to-emerald-950/40">
         <div className="flex flex-col items-center text-center">
-          <div className="bg-green-100 rounded-full p-4 mb-4">
-            <CheckCircle className="w-12 h-12 text-green-600" />
+          <div className="mb-4 rounded-full bg-green-100 p-4 dark:bg-green-900/50">
+            <CheckCircle className="h-12 w-12 text-green-600" />
           </div>
-          <h3 className="text-xl font-bold text-gray-900 mb-2">
+          <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">
             כל הקבלות עובדו! 🎉
           </h3>
-          <p className="text-gray-600 max-w-md">
+          <p className="max-w-md text-gray-600 dark:text-gray-400">
             אין קבלות ממתינות. כל הקבלות שהעלית מלאות ומוכנות לדיווח.
           </p>
         </div>
@@ -132,17 +132,17 @@ export default function DraftsInbox({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md">
+    <div className="rounded-lg bg-white shadow-md dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-gradient-to-r from-yellow-50 to-amber-50 border-b-2 border-yellow-200 p-6">
+      <div className="border-b-2 border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50 p-6 dark:border-yellow-800 dark:from-yellow-950/50 dark:to-amber-950/50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-yellow-100 rounded-full p-3">
-              <AlertCircle className="w-6 h-6 text-yellow-600" />
+            <div className="rounded-full bg-yellow-100 p-3 dark:bg-yellow-900/50">
+              <AlertCircle className="h-6 w-6 text-yellow-600" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">קבלות ממתינות</h2>
-              <p className="text-sm text-gray-600">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">קבלות ממתינות</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 {drafts.length} {drafts.length === 1 ? "קבלה ממתינה" : "קבלות ממתינות"} למילוי פרטים
               </p>
             </div>
@@ -167,10 +167,10 @@ export default function DraftsInbox({
             return (
               <div
                 key={draft.id}
-                className="group border-2 border-gray-200 rounded-lg overflow-hidden hover:border-yellow-400 hover:shadow-lg transition-all duration-200"
+                className="group overflow-hidden rounded-lg border-2 border-gray-200 transition-all duration-200 hover:border-yellow-400 hover:shadow-lg dark:border-gray-700 dark:hover:border-yellow-600"
               >
                 {/* Receipt Thumbnail */}
-                <div className="relative bg-gray-100 h-48 flex items-center justify-center overflow-hidden">
+                <div className="relative flex h-48 items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-800">
                   {documentUrl ? (
                     <div className="relative w-full h-full">
                       {/* Check if image or PDF */}
@@ -181,9 +181,9 @@ export default function DraftsInbox({
                           className="w-full h-full object-cover"
                         />
                       ) : (
-                        <div className="flex flex-col items-center justify-center h-full bg-gray-50">
-                          <FileText className="w-16 h-16 text-gray-400 mb-2" />
-                          <span className="text-xs text-gray-500">
+                        <div className="flex h-full flex-col items-center justify-center bg-gray-50 dark:bg-gray-800">
+                          <FileText className="mb-2 h-16 w-16 text-gray-400" />
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
                             {draft.document_path?.split(".").pop()?.toUpperCase()}
                           </span>
                         </div>
@@ -213,15 +213,15 @@ export default function DraftsInbox({
                 </div>
 
                 {/* Card Content */}
-                <div className="p-4">
+                <div className="border-t border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                   {/* Missing Info List */}
                   <div className="mb-3">
-                    <p className="text-xs text-gray-500 mb-1 font-medium">חסר:</p>
+                    <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">חסר:</p>
                     <div className="flex flex-wrap gap-1">
                       {missingInfo.map((info) => (
                         <span
                           key={info}
-                          className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs font-medium"
+                          className="rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950/50 dark:text-red-300"
                         >
                           {info}
                         </span>
@@ -231,12 +231,12 @@ export default function DraftsInbox({
 
                   {/* Partial Info Display */}
                   {draft.description && (
-                    <p className="text-sm text-gray-700 mb-2 truncate">
+                    <p className="mb-2 truncate text-sm text-gray-700 dark:text-gray-300">
                       <span className="font-medium">ספק:</span> {draft.description}
                     </p>
                   )}
                   {typeof draft.amount === "number" && !Number.isNaN(draft.amount) && (
-                    <p className="text-sm text-gray-700 mb-2">
+                    <p className="mb-2 text-sm text-gray-700 dark:text-gray-300">
                       <span className="font-medium">סכום:</span> ₪{draft.amount.toFixed(2)}
                     </p>
                   )}

@@ -314,39 +314,39 @@ export default function TransactionManager({
   const displayedTransactions = transactions;
 
   return (
-    <div className="max-w-6xl mx-auto px-0 sm:px-0">
-      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">ניהול עסקאות</h2>
+    <div className="mx-auto max-w-6xl px-0 sm:px-0">
+      <div className="rounded-lg bg-white p-4 shadow-md dark:bg-gray-900 sm:p-6">
+        <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-gray-100 sm:mb-6 sm:text-2xl">ניהול עסקאות</h2>
 
         {/* Period Management Toolbar */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+        <div className="mb-4 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 dark:border-blue-800 dark:from-blue-950/50 dark:to-indigo-950/50 sm:mb-6 sm:p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-y-3">
             {/* Left Side: Period Navigation */}
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <button
                 onClick={handlePreviousPeriod}
-                className="p-2 hover:bg-white rounded-md transition-colors"
+                className="rounded-md p-2 transition-colors hover:bg-white dark:hover:bg-gray-800"
                 aria-label="תקופה קודמת"
               >
-                <ChevronRight className="w-5 h-5 text-blue-600" />
+                <ChevronRight className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </button>
 
-              <div className="text-sm sm:text-base md:text-lg font-semibold text-gray-900 text-center min-w-[10rem]">
+              <div className="min-w-[10rem] text-center text-sm font-semibold text-gray-900 dark:text-gray-100 sm:text-base md:text-lg">
                 {getPeriodLabel(currentPeriod)}
               </div>
 
               <button
                 onClick={handleNextPeriod}
-                className="p-2 hover:bg-white rounded-md transition-colors"
+                className="rounded-md p-2 transition-colors hover:bg-white dark:hover:bg-gray-800"
                 aria-label="תקופה הבאה"
               >
-                <ChevronLeft className="w-5 h-5 text-blue-600" />
+                <ChevronLeft className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </button>
 
               {/* Download Bi-Monthly VAT Report Button */}
               <button
                 onClick={handleDownloadCSV}
-                className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-blue-50 border border-blue-300 text-blue-700 rounded-md transition-colors text-xs sm:text-sm font-medium sm:mr-2"
+                className="flex items-center gap-2 rounded-md border border-blue-300 bg-white px-3 py-2 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-blue-600 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/50 sm:mr-2 sm:text-sm"
                 title="הורד דוח מע״מ דו-חודשי מקיף (הכנסות, הוצאות וסיכום)"
               >
                 <Download className="w-4 h-4 shrink-0" />
@@ -357,7 +357,7 @@ export default function TransactionManager({
             {/* Right Side: Deadline Badge & Countdown */}
             <div className="flex items-center flex-wrap gap-2">
               {/* Deadline Badge */}
-              <div className="text-xs md:text-sm text-gray-700">
+              <div className="text-xs text-gray-700 dark:text-gray-300 md:text-sm">
                 <span className="font-medium">להגשה עד: </span>
                 <span className="font-semibold">
                   {getDeadline(currentPeriod).toLocaleDateString('he-IL')}
@@ -591,7 +591,7 @@ export default function TransactionManager({
               )}
 
               {/* Clean checkbox row - always visible */}
-              <div className="border border-gray-200 rounded-md p-4 bg-white">
+              <div className="rounded-md border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
@@ -639,11 +639,11 @@ export default function TransactionManager({
 
         {/* Transactions List */}
         <div>
-          <h3 className="text-lg font-semibold mb-4">
+          <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
             עסקאות לתקופה ({displayedTransactions.length})
           </h3>
           {displayedTransactions.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
+            <p className="py-8 text-center text-gray-500 dark:text-gray-400">
               אין עסקאות להצגה. הוסף את העסקה הראשונה שלך!
             </p>
           ) : (
@@ -655,7 +655,7 @@ export default function TransactionManager({
                 return (
                   <div
                     key={`m-${transaction.id}`}
-                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm ring-1 ring-black/5"
+                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-800 dark:ring-white/10"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -742,20 +742,20 @@ export default function TransactionManager({
 
             <div className="hidden md:block max-h-[min(70vh,560px)] overflow-x-auto overflow-y-auto relative scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent -mx-1 px-1">
               <table className="w-full min-w-[720px] text-sm">
-                <thead className="sticky top-0 z-10 bg-white shadow-sm border-b-2 border-gray-200">
+                <thead className="sticky top-0 z-10 border-b-2 border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
                   <tr>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">תאריך</th>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">סוג</th>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">תיאור</th>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">קטגוריה</th>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">סכום כולל</th>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">מע״מ בקבלה</th>
-                    <th className="px-4 py-3 text-right text-sm font-bold text-gray-900 bg-gray-50">מע״מ מוכר</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-900 bg-gray-50">מסמך</th>
-                    <th className="px-4 py-3 text-center text-sm font-bold text-gray-900 bg-gray-50">פעולות</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">תאריך</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">סוג</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">תיאור</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">קטגוריה</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">סכום כולל</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">מע״מ בקבלה</th>
+                    <th className="bg-gray-50 px-4 py-3 text-right text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">מע״מ מוכר</th>
+                    <th className="bg-gray-50 px-4 py-3 text-center text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">מסמך</th>
+                    <th className="bg-gray-50 px-4 py-3 text-center text-sm font-bold text-gray-900 dark:bg-gray-800 dark:text-gray-100">פעולות</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {displayedTransactions.map((transaction) => {
                     // Get Hebrew category label
                     const taxCategory = transaction.category ? getCategoryById(transaction.category) : null;
@@ -763,9 +763,9 @@ export default function TransactionManager({
                     return (
                     <tr
                       key={transaction.id}
-                      className="hover:bg-gray-50 transition-colors"
+                      className="transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/80"
                     >
-                      <td className="px-4 py-3 text-gray-900">
+                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100">
                         {new Date(transaction.date).toLocaleDateString("he-IL")}
                       </td>
                       <td className="px-4 py-3">

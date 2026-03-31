@@ -1,6 +1,6 @@
 # 🏗️ My Tax App - Architecture Documentation
 
-**Last Updated:** 2026-03-30
+**Last Updated:** 2026-03-31
 **Purpose:** Complete system architecture including WhatsApp integration, AI receipt processing, and production deployment setup.
 
 ---
@@ -58,9 +58,8 @@ my-tax-app/
 │   ├── init-db.ts                   # ❌ [DEPRECATED] Old database initialization
 │   ├── db-migration-draft-status.ts # ❌ [DEPRECATED] Old migration script
 │   ├── auth-server.ts               # ✅ [ACTIVE] JWT authentication (server-side)
-│   ├── ai-knowledge.ts              # ✅ [ACTIVE] AI knowledge base
-│   ├── tax-knowledge.ts             # ✅ [ACTIVE] Tax category definitions
-│   ├── tax-regulations.ts           # ✅ [ACTIVE] Israeli tax law context
+│   ├── ai-knowledge.ts              # ✅ [ACTIVE] Consolidated chat prompt (AI_KNOWLEDGE_BASE) + FAQ cache
+│   ├── tax-knowledge.ts             # ✅ [ACTIVE] Tax category definitions (deterministic UI / receipts)
 │   └── fiscal-utils.ts              # ✅ [ACTIVE] VAT period calculations
 │
 ├── 📁 prisma/                       # **THE NEW SOURCE OF TRUTH**
@@ -96,6 +95,8 @@ my-tax-app/
 └── ARCHITECTURE.md                  # 📖 THIS FILE
 ```
 
+**Structure note (not every file is drawn above):** The repo also includes `app/admin/page.tsx`, `app/api/admin/`, `app/api/feedback/`, `components/BulkUploadArea.tsx`, `EditTransactionModal.tsx`, `ReportIssueFAB.tsx`, `ThemeToggle.tsx`, `theme-provider.tsx`, `AdminUsersTable.tsx`, and helpers `lib/admin.ts`, `lib/utils.ts`. Chat tax logic is **only** in `lib/ai-knowledge.ts` (`AI_KNOWLEDGE_BASE`); category math remains in `lib/tax-knowledge.ts`.
+
 ---
 
 ## 🧠 2. File Responsibilities & Status
@@ -113,7 +114,7 @@ my-tax-app/
 |------|---------|--------|
 | `app/api/transactions/route.ts` | Transaction CRUD (GET/POST/PUT) | ✅ Migrated to Prisma |
 | `app/api/transactions/[id]/route.ts` | Transaction DELETE | ✅ Migrated to Prisma |
-| `app/api/chat/route.ts` | AI Chat with RAG | ✅ Uses Prisma |
+| `app/api/chat/route.ts` | AI chat (Gemini + `AI_KNOWLEDGE_BASE` + user context) | ✅ Uses Prisma |
 | `app/api/settings/route.ts` | User Profile management | ✅ Uses Prisma |
 | `app/api/auth/login/route.ts` | User authentication | ✅ Active |
 | `app/api/upload/route.ts` | File upload handler | ✅ Active |
@@ -145,9 +146,16 @@ my-tax-app/
 | `lib/receipt-processor.ts` | **SHARED PIPELINE** - Upload to Supabase + Gemini processing | ✅ Active |
 | `lib/phone-utils.ts` | Israeli phone normalization (972XXXXXXXXX format) | ✅ Active |
 | `lib/fiscal-utils.ts` | VAT period calculations | ✅ Active |
-| `lib/tax-knowledge.ts` | Tax category definitions | ✅ Active |
-| `lib/tax-regulations.ts` | Israeli tax law context | ✅ Active |
-| `lib/ai-knowledge.ts` | AI knowledge base for chat | ✅ Active |
+| `lib/tax-knowledge.ts` | Tax category definitions (deterministic rules for transactions & OCR) | ✅ Active |
+| `lib/ai-knowledge.ts` | **Consolidated** chat tax/advisory rules (`AI_KNOWLEDGE_BASE`) + `FAQ_QUICK_ANSWERS` | ✅ Active |
+
+### 🤖 AI & Logic (Advisory Chat & Tax Rules)
+
+| Piece | Role |
+|-------|------|
+| **`lib/ai-knowledge.ts`** | **Single high-efficiency source** for the chat model: `AI_KNOWLEDGE_BASE` (compressed “Tachles” advisory rules aligned with the 2026 VAT framing), plus `FAQ_QUICK_ANSWERS` for instant client-side replies in `AIChat` before calling the API. |
+| **`app/api/chat/route.ts`** | Builds `system` = `AI_KNOWLEDGE_BASE` + per-user `formattedContext` (profile, last 20 transactions, last 10 chat messages). Streams via Vercel AI SDK + Google Gemini. **No separate law file** — former `lib/tax-regulations.ts` was removed; advisory text lives only in `AI_KNOWLEDGE_BASE`. |
+| **`lib/tax-knowledge.ts`** | **Separate** from chat: deterministic categories, VAT recognition %, and receipt/UI logic — not duplicated in `ai-knowledge.ts`. |
 
 #### Scripts (Maintenance Tools)
 | File | Purpose | Status |
@@ -208,7 +216,7 @@ my-tax-app/
 ├─────────────────────────────────────────────────────────────────┤
 │  ✅ /api/transactions       (GET/POST/PUT)                       │
 │  ✅ /api/transactions/[id]  (DELETE)                             │
-│  ✅ /api/chat               (AI with RAG)                        │
+│  ✅ /api/chat               (Gemini + AI_KNOWLEDGE_BASE + user context) │
 │  ✅ /api/settings           (Profile CRUD)                       │
 │  ✅ /api/upload             (File uploads)                       │
 │                                                                  │
@@ -1086,6 +1094,7 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 | 2026-03-12 | Fixed PUT vatRate bug (0.17 → 0.18) | Claude |
 | 2026-03-12 | Fixed vatPercentage precision (0.6666 → 0.6667) | Claude |
 | 2026-03-12 | Added Tax Rules section; deleted stale root DB | Claude |
+| 2026-03-31 | Docs: consolidated chat rules in `lib/ai-knowledge.ts`; removed `lib/tax-regulations.ts` references | — |
 
 ---
 
@@ -1244,7 +1253,7 @@ recognizedVatAmount = vatAmount × category.vatPercentage  // Claimable portion
 - ✅ Phone normalization (972 logic)
 - ✅ Settings UI with click-to-chat & QR code
 - ✅ Draft/Complete transaction workflow
-- ✅ AI Chat with RAG (tax knowledge base)
+- ✅ AI Chat (Gemini + consolidated `AI_KNOWLEDGE_BASE` in `lib/ai-knowledge.ts` + user context)
 - ✅ Dashboard with income/expense summaries
 - ✅ VAT reporting and calculations
 - ✅ Export to Excel (bi-monthly reports)

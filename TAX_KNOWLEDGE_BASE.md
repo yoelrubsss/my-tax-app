@@ -2,9 +2,11 @@
 
 ## Overview
 
-This document describes the **Legal Knowledge Base** (`lib/tax-knowledge.ts`) that serves as the "Ground Truth" for the AI Accountant feature.
+This document describes the **category / calculation knowledge** in **`lib/tax-knowledge.ts`** — the deterministic “ground truth” for VAT recognition, categories, and receipt flows.
 
-Instead of relying on AI hallucinations, the system uses **deterministic rules** based on official Israeli tax regulations.
+**Chat advisory text** (what the Gemini chat model sees) lives separately in **`lib/ai-knowledge.ts`** as the consolidated **`AI_KNOWLEDGE_BASE`** (Tachles MVP). There is **no** `lib/tax-regulations.ts` in the current codebase.
+
+Instead of relying on AI hallucinations for categorization math, the app uses **deterministic rules** in `tax-knowledge.ts`, informed by Israeli tax practice.
 
 ---
 
