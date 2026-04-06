@@ -1,111 +1,68 @@
-# Israeli VAT Management App - ניהול מע״מ לעוסק מורשה
+# Israeli VAT Management (SaaS)
 
-אפליקציה לניהול דו״חות מע״מ עבור עוסק מורשה בישראל.
+ניהול מע״מ דו-חודשי לעוסק מורשה בישראל — אפליקציית ווב מלאה (עברית, RTL) לרישום הכנסות והוצאות, קליטת קבלות מוואטסאפ, וייצוא לרואה חשבון.
 
-## Features - תכונות
+## Core features
 
-- ניהול עסקאות הכנסה והוצאה
-- חישוב אוטומטי של מע״מ (18%)
-- דיווח דו-חודשי
-- ממשק בעברית (RTL)
-- מסכי סיכום לעדכון אתר רשות המיסים
+| Feature | Description |
+|--------|-------------|
+| **WhatsApp receipt processing** | קישור מספר(ים) בהגדרות, קבלת תמונות/PDF בוואטסאפ, יצירת טיוטות לבדיקה |
+| **AI agent for tax classification** | צ'אט עוזר מס (מע״מ / הוצאות מוכרות) עם הקשר מהמערכת |
+| **1-click export to accountant** | ייצוא CSV/Excel לפי תקופת מע״מ נבחרת מתוך ניהול העסקאות |
+| **Mobile-first dashboard** | ממשק מותאם מובייל (ללא zoom מעצבן ב־iOS), תאריכי יעד ממורכזים, תפריט "עוד" |
 
-## Getting Started - התחלה
+## What’s new — v1.0 Alpha
 
-### 1. Install Dependencies - התקנת תלויות
+- **100% mobile UI polish** — שדות קלט בגודל טקסט נוח, אזורי לחיצה ברורים, תאריכי dead-line ממורכזים בטלפון
+- **Video tutorial modal** — "סרטון הדרכה" בכותרת (במקום דף מדריך נפרד), הטמעת וידאו + הסבר קצר
+- **Integrated tooltips** — מונחי מס והסברים הקשריים (`HelpTooltip`) ליד שדות וסיכומים
+- **Forced light mode on auth** — מסכי כניסה והרשמה תמיד במראה בהיר, ללא תלות בערכת נושא כהה
+
+## Tech stack
+
+- **Next.js 15** (App Router, React 19)
+- **Prisma** + **PostgreSQL**
+- **WhatsApp Cloud API** (webhook + Vercel; פיתוח מקומי עם ngrok לפי הצורך)
+- **Tailwind CSS** + **Lucide** icons
+- **AI**: Google Gemini (סריקת קבלות / צ'אט — לפי הגדרות הסביבה)
+
+## Prerequisites
+
+- Node.js 20+
+- PostgreSQL (או `DATABASE_URL` מנוהל, למשל Vercel Postgres / Neon)
+
+## Setup
 
 ```bash
 npm install
-```
-
-### 2. Initialize Database - אתחול מסד הנתונים
-
-```bash
-npm run setup-db
-```
-
-### 3. Run Development Server - הפעלת שרת פיתוח
-
-```bash
+cp .env.example .env   # והגדר DATABASE_URL, מפתחות AI, WhatsApp וכו'
+npx prisma generate
+npx prisma db push     # או migrate לפי הסביבה
 npm run dev
 ```
 
-פתח את הדפדפן בכתובת [http://localhost:3000](http://localhost:3000)
+פתח [http://localhost:3000](http://localhost:3000).
 
-## Technology Stack - טכנולוגיות
+## Scripts
 
-- **Next.js 15** - React framework
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
-- **SQLite (better-sqlite3)** - Database
-- **Lucide React** - Icons
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | שרת פיתוח |
+| `npm run build` | בניית production |
+| `npm run start` | הרצה אחרי build |
+| `npm run lint` | ESLint |
+| `npm run setup-db` | עזר לאתחול DB (אם קיים בפרויקט) |
 
-## Database Schema - מבנה מסד הנתונים
+## Documentation
 
-### users - משתמשים
-- id (primary key)
-- name - שם
-- dealer_number - מספר עוסק מורשה
-- created_at - תאריך יצירה
+- **`ARCHITECTURE.md`** — זרימות נתונים, AI, מבנה API
+- **`.env.example`** — משתני סביבה נדרשים
 
-### transactions - עסקאות
-- id (primary key)
-- user_id (foreign key)
-- type - סוג (income/expense)
-- amount - סכום כולל מע״מ
-- vat_amount - סכום מע״מ
-- date - תאריך
-- description - תיאור
-- category - קטגוריה
-- is_vat_deductible - ניתן לניכוי במע״מ
-- created_at - תאריך יצירה
+## Alpha testing notes
 
-## Tax Rules - כללי מיסוי
+- בודקים יכולים לאפס את בלוק "מתחילים" עם query: `/?resetOnboarding=1` (או להסיר `mytax_onboarding_dismissed` מ-localStorage)
+- ייצוא לרואה חשבון: כפתור ב**ניהול עסקאות** לפי התקופה הנבחרת
 
-- שיעור מע״מ: 18%
-- תדירות דיווח: דו-חודשי
-- ניכוי מע״מ על רכבים פרטיים: לא (אלא אם צוין אחרת)
+## License / usage
 
-## Development - פיתוח
-
-```bash
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Run linter
-npm run lint
-```
-
-## Project Structure - מבנה הפרויקט
-
-```
-my-tax-app/
-├── app/                  # Next.js App Router
-│   ├── layout.tsx       # Root layout with RTL support
-│   ├── page.tsx         # Home page
-│   └── globals.css      # Global styles
-├── lib/                 # Utilities and database
-│   ├── db.ts           # Database connection and schema
-│   ├── db-operations.ts # Database operations
-│   └── init-db.ts      # Database initialization
-├── components/          # React components
-├── scripts/            # Setup scripts
-│   └── setup-db.ts    # Database setup
-└── system_rules.md    # System guidelines
-```
-
-## Documentation - תיעוד
-
-- **`ARCHITECTURE.md`** — Current system layout, data flow, and **AI & logic**: chat uses a consolidated **`AI_KNOWLEDGE_BASE`** in **`lib/ai-knowledge.ts`** (no `lib/tax-regulations.ts`). Category/VAT math for transactions remains in **`lib/tax-knowledge.ts`**.
-
-## Notes - הערות
-
-- האפליקציה מיועדת לעוסק מורשה בישראל
-- כל הטבלאות כוללות user_id למדרגיות עתידית
-- ללא יצירת PDFs - רק מסכי סיכום להעתקה לאתר רשות המיסים
+פרויקט פרטי — שימוש לפי מדיניות הצוות.

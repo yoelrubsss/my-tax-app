@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { isAdminUser } from "@/lib/admin";
+import { devLog } from "@/lib/dev-log";
 
 // POST: Register new user
 export async function POST(request: NextRequest) {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password, name, dealer_number, business_name } = body;
 
-    console.log("📝 Registration attempt:", { email, name, dealer_number, business_name });
+    devLog("📝 Registration attempt:", { email, name, dealer_number, business_name });
 
     // Validate required fields
     if (!email || !password || !name || !dealer_number) {
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`✅ User created successfully: ${newUser.id} (${newUser.email})`);
+    devLog(`✅ User created successfully: ${newUser.id} (${newUser.email})`);
 
     return NextResponse.json({
       success: true,

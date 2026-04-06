@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { FileText, AlertCircle, Eye, Clock, CheckCircle, Trash2 } from "lucide-react";
 import HelpTooltip from "./HelpTooltip";
+import { devLog } from "@/lib/dev-log";
 
 interface Transaction {
   id: string | number; // Support both CUID and legacy numeric IDs
@@ -64,7 +65,7 @@ export default function DraftsInbox({
     }
 
     try {
-      console.log(`🗑️ Deleting draft transaction: ${id}`);
+      devLog(`🗑️ Deleting draft transaction: ${id}`);
       const response = await fetch(`/api/transactions/${id}`, {
         method: "DELETE",
       });
@@ -76,7 +77,7 @@ export default function DraftsInbox({
       const result = await response.json();
 
       if (result.success) {
-        console.log("✅ Draft deleted successfully");
+        devLog("✅ Draft deleted successfully");
         onRefreshNeeded(); // Trigger parent to refresh
       } else {
         throw new Error(result.error || "Failed to delete");
@@ -145,12 +146,12 @@ export default function DraftsInbox({
               <h2 className="flex items-center gap-1 text-2xl font-bold text-text">
                 <span>קבלות ממתינות</span>
                 <HelpTooltip
-                  text="קבלה שנשמרה אבל עדיין חסרים בה פרטים לפני דיווח."
+                  text="המערכת זיהתה את הקבלה; נשאר לאשר או לערוך לפני שהיא נכנסת לדיווח."
                   label="מה זה טיוטה"
                 />
               </h2>
               <p className="text-sm text-text-muted">
-                {drafts.length} {drafts.length === 1 ? "קבלה ממתינה" : "קבלות ממתינות"} למילוי פרטים
+                {drafts.length} {drafts.length === 1 ? "קבלה ממתינה" : "קבלות ממתינות"} לאישורך
               </p>
             </div>
           </div>
@@ -207,9 +208,9 @@ export default function DraftsInbox({
                     </div>
                   )}
 
-                  {/* Missing Info Badge */}
-                  <div className="absolute top-2 left-2 bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                    חסר פרטים
+                  {/* Pending approval — all drafts */}
+                  <div className="absolute top-2 left-2 rounded-full border border-amber-400 bg-amber-100 px-3 py-1 text-xs font-bold text-amber-950 shadow-md dark:border-amber-600 dark:bg-amber-950/90 dark:text-amber-100">
+                    מחכה לאישור
                   </div>
 
                   {/* Upload Date Badge */}
@@ -221,20 +222,26 @@ export default function DraftsInbox({
 
                 {/* Card Content */}
                 <div className="border-t border-border bg-card p-4">
-                  {/* Missing Info List */}
-                  <div className="mb-3">
-                    <p className="mb-1 text-xs font-medium text-text-muted">חסר:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {missingInfo.map((info) => (
-                        <span
-                          key={info}
-                          className="ui-chip border-danger/40 bg-danger/10 text-danger"
-                        >
-                          {info}
-                        </span>
-                      ))}
+                  {/* Optional: fields you may still want to fill (only if incomplete) */}
+                  {missingInfo.length > 0 ? (
+                    <div className="mb-3">
+                      <p className="mb-1 text-xs font-medium text-text-muted">ניתן להשלים:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {missingInfo.map((info) => (
+                          <span
+                            key={info}
+                            className="ui-chip border-amber-400/50 bg-amber-50 text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+                          >
+                            {info}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <p className="mb-3 text-xs text-text-muted">
+                      הפרטים זוהו — לחץ לאישור סופי
+                    </p>
+                  )}
 
                   {/* Partial Info Display */}
                   {draft.description && (
@@ -255,7 +262,7 @@ export default function DraftsInbox({
                       className="ui-button ui-button-primary px-4 py-2 font-bold"
                     >
                       <Eye className="w-4 h-4" />
-                      מלא פרטים
+                      פתח לאישור
                     </button>
                     <button
                       onClick={(e) => {

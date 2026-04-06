@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-server";
 import { getCategoryById } from "@/lib/tax-knowledge";
 import { formatIsraeliPhoneForDisplay } from "@/lib/phone-utils";
+import { devLog } from "@/lib/dev-log";
 
 /** Merge draft + completed lists; sort by transaction date desc, then createdAt desc. */
 function mergeTransactionsByDateDesc<
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (process.env.NODE_ENV === "development") {
-      console.log(`📥 GET /api/transactions - User: ${userIdStr}`);
+      devLog(`📥 GET /api/transactions - User: ${userIdStr}`);
     }
 
     // Get filters from query params
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     const includeProfile = searchParams.get("includeProfile") === "1";
 
     if (process.env.NODE_ENV === "development") {
-      console.log(
+      devLog(
         `   Filters: startDate=${startDate}, endDate=${endDate}, statusFilter=${statusFilter}, includeProfile=${includeProfile}`
       );
     }
@@ -200,7 +201,7 @@ export async function GET(request: NextRequest) {
     const completedCount = mappedTransactions.length - draftCount;
 
     if (process.env.NODE_ENV === "development") {
-      console.log(
+      devLog(
         `✅ Found ${transactions.length} transaction(s): ${completedCount} completed, ${draftCount} drafts`
       );
     }
@@ -284,14 +285,14 @@ export async function POST(request: NextRequest) {
     // Use receiptUrl or document_path (support both field names)
     const finalReceiptUrl = receiptUrl || document_path || null;
 
-    console.log(`📤 POST /api/transactions - User: ${userIdStr}, Type: ${type || 'draft'}, ReceiptUrl: ${finalReceiptUrl ? 'Yes' : 'No'}`);
+    devLog(`📤 POST /api/transactions - User: ${userIdStr}, Type: ${type || 'draft'}, ReceiptUrl: ${finalReceiptUrl ? 'Yes' : 'No'}`);
 
     // RELAXED VALIDATION: Allow incomplete transactions if receiptUrl is present
     // This enables "Quick Draft" functionality where user uploads receipt first
     const isQuickDraft = finalReceiptUrl && (!type || !amount || (!description && !merchant));
 
     if (isQuickDraft) {
-      console.log(`   📝 Quick Draft mode: Creating incomplete transaction with defaults`);
+      devLog(`   📝 Quick Draft mode: Creating incomplete transaction with defaults`);
     }
 
     // Apply defaults for missing fields
@@ -334,7 +335,7 @@ export async function POST(request: NextRequest) {
 
       recognizedVatAmount = isRecognized ? vatAmount * vatPercentage : 0;
 
-      console.log(
+      devLog(
         `   💰 VAT Calculation: Total VAT: ₪${vatAmount.toFixed(
           2
         )}, Category: ${finalCategory}, is_vat_deductible: ${isRecognized}, Recognition: ${(
@@ -363,7 +364,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`✅ Created transaction ${transaction.id} (${isQuickDraft ? 'Draft' : 'Complete'})`);
+    devLog(`✅ Created transaction ${transaction.id} (${isQuickDraft ? 'Draft' : 'Complete'})`);
 
     // Map to frontend format
     const isDraft = transaction.status === 'DRAFT';
@@ -429,7 +430,7 @@ export async function PUT(request: NextRequest) {
       is_vat_deductible,
     } = body;
 
-    console.log(`📝 PUT /api/transactions - User: ${userIdStr}, ID: ${id}`);
+    devLog(`📝 PUT /api/transactions - User: ${userIdStr}, ID: ${id}`);
 
     if (!id) {
       return NextResponse.json(
@@ -584,7 +585,7 @@ export async function PUT(request: NextRequest) {
       data: updates,
     });
 
-    console.log(`✅ Updated transaction ${id}`);
+    devLog(`✅ Updated transaction ${id}`);
 
     // Map to frontend format
     const isDraft = updatedTransaction.status === 'DRAFT';

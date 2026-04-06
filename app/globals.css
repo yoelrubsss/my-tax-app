@@ -56,7 +56,8 @@ body {
   }
 
   .ui-input {
-    @apply w-full rounded-lg border border-border bg-input-bg px-3 py-2 text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary;
+    /* text-base on mobile prevents iOS Safari focus zoom (<16px); md:text-sm for density on larger screens */
+    @apply w-full rounded-lg border border-border bg-input-bg px-3 py-2 text-base text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary md:text-sm;
   }
 
   .ui-table {
@@ -112,15 +113,54 @@ body {
   }
 
   .ui-button-primary {
-    @apply bg-primary text-white hover:opacity-90;
+    @apply bg-primary text-white transition-transform hover:opacity-90 active:scale-95;
   }
 
   .ui-button-danger {
-    @apply bg-danger text-white hover:opacity-90;
+    @apply bg-danger text-white transition-transform hover:opacity-90 active:scale-95;
   }
 
   .ui-button-ghost {
-    @apply border border-border bg-card text-text hover:bg-card-muted;
+    @apply border border-border bg-card text-text transition-transform hover:bg-card-muted active:scale-[0.98];
+  }
+
+  /* Login / register: fixed light UI even when html.dark (system dark mode) */
+  .auth-page {
+    color-scheme: light;
+    @apply min-h-screen bg-white text-gray-900;
+  }
+
+  .auth-page .auth-card {
+    @apply rounded-2xl border border-gray-200 bg-white p-8 text-gray-900 shadow-xl;
+  }
+
+  .auth-page .auth-label {
+    @apply mb-2 flex items-center gap-2 text-sm font-medium text-gray-600;
+  }
+
+  .auth-page .auth-input {
+    @apply w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-base text-black placeholder:text-gray-500;
+    @apply focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500;
+    @apply disabled:opacity-50;
+  }
+
+  .auth-page .auth-btn-primary {
+    @apply flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white shadow-md;
+    @apply transition-colors hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800;
+    @apply disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .dark .auth-page,
+  .dark .auth-page .auth-card {
+    @apply bg-white text-gray-900;
+  }
+
+  .dark .auth-page .auth-input {
+    @apply border-gray-300 bg-white text-black placeholder:text-gray-500;
+  }
+
+  .dark .auth-page .auth-label {
+    @apply text-gray-600;
   }
 }
 

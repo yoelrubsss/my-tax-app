@@ -6,6 +6,7 @@ import { User as UserIcon, Building2, Home, Users, Car, Save, ArrowRight, Phone,
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import ThemeToggle from "@/components/ThemeToggle";
+import { devLog } from "@/lib/dev-log";
 
 interface SettingsForm {
   businessName: string;
@@ -103,7 +104,7 @@ export default function SettingsPage() {
         return;
       }
 
-      console.log("📥 Settings API response:", result);
+      devLog("📥 Settings API response:", result);
 
       if (!isRecord(result) || !result.success) {
         console.warn("⚠️ Settings API returned no data or failed:", result);
@@ -129,7 +130,7 @@ export default function SettingsPage() {
         whatsappPhone2: parsed.whatsappPhone2 ?? "",
       }));
 
-      console.log("✅ Settings form populated");
+      devLog("✅ Settings form populated");
     } catch (error) {
       console.error("❌ Error fetching settings:", formatUnknownError(error));
     } finally {

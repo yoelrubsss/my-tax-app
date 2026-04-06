@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-server";
+import { devLog } from "@/lib/dev-log";
 
 // DELETE: Remove a transaction by ID (with authorization check)
 export async function DELETE(
@@ -22,7 +23,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    console.log(`🗑️  DELETE /api/transactions/${id} - User: ${userIdStr}`);
+    devLog(`🗑️  DELETE /api/transactions/${id} - User: ${userIdStr}`);
 
     if (!id) {
       return NextResponse.json(
@@ -56,7 +57,7 @@ export async function DELETE(
       where: { id: id },
     });
 
-    console.log(`✅ Deleted transaction ${id}`);
+    devLog(`✅ Deleted transaction ${id}`);
 
     return NextResponse.json({
       success: true,

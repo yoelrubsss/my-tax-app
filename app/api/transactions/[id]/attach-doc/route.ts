@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
+import { devLog } from "@/lib/dev-log";
 
 // POST: Attach document to transaction
 export async function POST(
@@ -56,7 +57,7 @@ export async function POST(
       data: { receiptUrl: documentPath },
     });
 
-    console.log(`✅ Attached document to transaction ${transactionId}`);
+    devLog(`✅ Attached document to transaction ${transactionId}`);
 
     return NextResponse.json({
       success: true,

@@ -1,3 +1,5 @@
+import { devLog } from "@/lib/dev-log";
+
 /**
  * Phone Number Utilities for Israeli WhatsApp Integration
  *
@@ -31,7 +33,7 @@ export function normalizeIsraeliPhone(phoneNumber: string | null | undefined): s
   // Remove all non-digit characters
   let cleaned = phoneNumber.replace(/\D/g, '');
 
-  console.log(`📱 [PHONE] Normalizing: "${phoneNumber}" → cleaned: "${cleaned}"`);
+  devLog(`📱 [PHONE] Normalizing: "${phoneNumber}" → cleaned: "${cleaned}"`);
 
   // Validate minimum length (Israeli mobile: 9-10 digits, with country code: 11-12 digits)
   if (cleaned.length < 9) {
@@ -42,12 +44,12 @@ export function normalizeIsraeliPhone(phoneNumber: string | null | undefined): s
   // If starts with '0', remove it and prepend '972'
   if (cleaned.startsWith('0')) {
     cleaned = '972' + cleaned.substring(1);
-    console.log(`📱 [PHONE] Removed leading 0, added 972: "${cleaned}"`);
+    devLog(`📱 [PHONE] Removed leading 0, added 972: "${cleaned}"`);
   }
   // If doesn't start with '972', prepend it
   else if (!cleaned.startsWith('972')) {
     cleaned = '972' + cleaned;
-    console.log(`📱 [PHONE] Added 972 prefix: "${cleaned}"`);
+    devLog(`📱 [PHONE] Added 972 prefix: "${cleaned}"`);
   }
 
   // Validate final format (should be 972XXXXXXXXX - 12 digits total)
@@ -56,7 +58,7 @@ export function normalizeIsraeliPhone(phoneNumber: string | null | undefined): s
     return null;
   }
 
-  console.log(`✅ [PHONE] Normalized: "${phoneNumber}" → "${cleaned}"`);
+  devLog(`✅ [PHONE] Normalized: "${phoneNumber}" → "${cleaned}"`);
   return cleaned;
 }
 

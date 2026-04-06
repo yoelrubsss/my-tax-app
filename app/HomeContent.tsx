@@ -15,6 +15,8 @@ import {
   Circle,
   MessageCircle,
   LayoutDashboard,
+  Video,
+  MoreVertical,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import TransactionManager from "@/components/TransactionManager";
@@ -25,8 +27,10 @@ import AIChat from "@/components/AIChat";
 import ReportIssueFAB from "@/components/ReportIssueFAB";
 import ThemeToggle from "@/components/ThemeToggle";
 import HelpTooltip from "@/components/HelpTooltip";
+import VideoTutorialModal from "@/components/VideoTutorialModal";
 import { formatMoney } from "@/lib/utils";
 import { getVatPeriodDateBoundsFromMonthParam } from "@/lib/fiscal-utils";
+import { devLog } from "@/lib/dev-log";
 
 interface Transaction {
   id: string | number; // Support both CUID and legacy numeric IDs
@@ -87,6 +91,8 @@ export default function HomeContent() {
     business_name: string | null;
   } | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   /** Increments every 10s while tab is visible — silent data refresh (WhatsApp drafts, etc.). */
   const [silentPollTick, setSilentPollTick] = useState(0);
   /** Global fingerprint (matches GET ?summary=1 and response meta.summary) — not period-scoped. */
@@ -115,6 +121,32 @@ export default function HomeContent() {
     }
     setOnboardingLSReady(true);
   }, []);
+
+  /** Empty accounts: clear stale "dismissed" so מתחילים shows again (LS persists across sessions). */
+  useEffect(() => {
+    if (!onboardingLSReady) return;
+    if (hasAnyTransactions !== false) return;
+    try {
+      localStorage.removeItem(ONBOARDING_DISMISSED_KEY);
+    } catch {
+      /* ignore */
+    }
+    setOnboardingPhase((phase) => (phase === "hidden" ? "tasks" : phase));
+  }, [hasAnyTransactions, onboardingLSReady]);
+
+  /** Testing: open `/?month=YYYY-MM&resetOnboarding=1` — clears dismissed flag and shows the 3 steps. */
+  useEffect(() => {
+    if (searchParams?.get("resetOnboarding") !== "1") return;
+    try {
+      localStorage.removeItem(ONBOARDING_DISMISSED_KEY);
+    } catch {
+      /* ignore */
+    }
+    setOnboardingPhase("tasks");
+    const month = searchParams.get("month");
+    const next = month ? `/?month=${encodeURIComponent(month)}` : "/";
+    router.replace(next, { scroll: false });
+  }, [searchParams, router]);
 
   /** Profile / WhatsApp rarely changes — one GET /api/settings on mount (not joined with every transactions fetch). */
   useEffect(() => {
@@ -181,6 +213,14 @@ export default function HomeContent() {
     return () => window.clearTimeout(t);
   }, [toastMessage]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileMoreOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const onAllDraftsResolved = useCallback(() => {
     setToastMessage("All caught up! ✅");
   }, []);
@@ -204,7 +244,7 @@ export default function HomeContent() {
         const monthParam = searchParams?.get("month");
         const periodBounds = getVatPeriodDateBoundsFromMonthParam(monthParam);
         if (periodBounds && process.env.NODE_ENV === "development") {
-          console.log(
+          devLog(
             `📅 BI-MONTHLY VAT Period: ${monthParam} (${periodBounds.startDate} to ${periodBounds.endDate})`
           );
         }
@@ -219,7 +259,7 @@ export default function HomeContent() {
             ? `/api/transactions?${txParams.toString()}`
             : "/api/transactions";
         if (!silent && process.env.NODE_ENV === "development") {
-          console.log(`🔍 Fetching transactions from: ${apiUrl}`);
+          devLog(`🔍 Fetching transactions from: ${apiUrl}`);
         }
 
         const response = await fetch(apiUrl, {
@@ -228,14 +268,14 @@ export default function HomeContent() {
         });
 
         if (signal?.aborted) {
-          console.log("⚠️ Fetch aborted - period changed");
+          devLog("⚠️ Fetch aborted - period changed");
           return;
         }
 
         const result = await response.json();
 
         if (!silent && process.env.NODE_ENV === "development") {
-          console.log(`📥 API Response:`, {
+          devLog(`📥 API Response:`, {
             success: result.success,
             dataLength: result.data?.length,
             period: monthParam ?? "all",
@@ -268,7 +308,7 @@ export default function HomeContent() {
           setTransactionsCache(transactions);
 
           if (!silent && process.env.NODE_ENV === "development") {
-            console.log(`📊 Found ${transactions.length} raw transactions from API`);
+            devLog(`📊 Found ${transactions.length} raw transactions from API`);
           }
 
           // COMPLETED rows are already scoped by the server for the VAT period; DRAFTs are included for inbox.
@@ -280,7 +320,7 @@ export default function HomeContent() {
           );
 
           if (!silent && process.env.NODE_ENV === "development") {
-            console.log(
+            devLog(
               `✅ ${validTransactions.length} transactions with valid amounts (in selected period)`
             );
           }
@@ -292,7 +332,7 @@ export default function HomeContent() {
           const incomeVAT = incomeTransactions.reduce((sum, t) => sum + (t.vat_amount || 0), 0);
 
           if (process.env.NODE_ENV === "development") {
-            console.log(
+            devLog(
               "💰 Income:",
               incomeTransactions.length,
               "transactions, total:",
@@ -310,7 +350,7 @@ export default function HomeContent() {
           );
 
           if (process.env.NODE_ENV === "development") {
-            console.log(
+            devLog(
               "💸 Expenses:",
               expenseTransactions.length,
               "transactions, total:",
@@ -324,7 +364,7 @@ export default function HomeContent() {
           const vatToPay = incomeVAT - expenseVAT;
 
           if (process.env.NODE_ENV === "development") {
-            console.log("📈 Net Profit:", netProfit, "VAT to Pay:", vatToPay);
+            devLog("📈 Net Profit:", netProfit, "VAT to Pay:", vatToPay);
           }
 
           setStats({
@@ -352,14 +392,14 @@ export default function HomeContent() {
         }
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
-          console.log("⚠️ Fetch cancelled - period changed");
+          devLog("⚠️ Fetch cancelled - period changed");
           return;
         }
 
         console.error("Error fetching stats:", error);
         if (!silent) {
           setTransactionsCache([]);
-          setHasAnyTransactions(true);
+          setHasAnyTransactions(null);
           setStats({
             totalIncome: 0,
             totalExpenses: 0,
@@ -394,7 +434,7 @@ export default function HomeContent() {
       const periodStartMonthStr = String(periodStartMonth).padStart(2, "0");
       targetMonth = `${year}-${periodStartMonthStr}`;
       if (process.env.NODE_ENV === "development") {
-        console.log(
+        devLog(
           `📅 No month parameter found, redirecting to current VAT period: ${targetMonth} (bi-monthly period for month ${currentMonth})`
         );
       }
@@ -407,7 +447,7 @@ export default function HomeContent() {
         const oddMonthStr = String(oddMonth).padStart(2, "0");
         targetMonth = `${year}-${oddMonthStr}`;
         if (process.env.NODE_ENV === "development") {
-          console.log(
+          devLog(
             `📅 Even month detected (${monthParam}), redirecting to period start: ${targetMonth}`
           );
         }
@@ -492,13 +532,13 @@ export default function HomeContent() {
 
   return (
     <>
-      <div className="ui-surface min-h-screen p-4 pb-24 md:p-8">
+      <div className="ui-surface min-h-screen p-4 pb-32 md:p-8 md:pb-8">
         {/* Header */}
         <div className="mx-auto mb-8 max-w-6xl px-4 md:px-0">
           <div className="rounded-lg border border-blue-500/30 bg-gradient-to-l from-blue-600 to-blue-700 p-5 text-white shadow-sm dark:border-blue-900/70 dark:from-blue-900 dark:to-blue-950 md:p-6">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 md:gap-4 min-w-0">
-                <Receipt className="h-8 w-8 flex-shrink-0 text-blue-100 md:h-12 md:w-12" />
+              <div className="flex min-w-0 items-center gap-2 md:gap-4">
+                <Receipt className="h-8 w-8 shrink-0 text-blue-100 md:h-12 md:w-12" />
                 <div className="min-w-0">
                   <h1 className="truncate text-base font-bold leading-tight md:text-3xl">
                     ניהול מע״מ - עוסק מורשה
@@ -509,11 +549,11 @@ export default function HomeContent() {
                 </div>
               </div>
 
-              {/* User Info & Logout */}
-              <div className="flex flex-shrink-0 items-center gap-2">
-                <div className="hidden text-left md:block">
+              {/* Desktop: full toolbar */}
+              <div className="hidden shrink-0 items-center gap-2 md:flex">
+                <div className="hidden text-left lg:block">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <User className="w-4 h-4" />
+                    <User className="h-4 w-4" />
                     <span>{user?.name || "משתמש"}</span>
                   </div>
                   {user?.business_name && <p className="mt-1 text-xs text-blue-200">{user.business_name}</p>}
@@ -521,14 +561,24 @@ export default function HomeContent() {
 
                 <ThemeToggle />
 
-                {/* Settings Button */}
                 <button
+                  type="button"
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="ui-button ui-button-ghost gap-1 px-2 py-2 text-sm text-primary md:gap-2 md:px-4"
+                  title="סרטון הדרכה"
+                >
+                  <Video className="h-4 w-4" />
+                  <span>סרטון הדרכה</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => router.push("/settings")}
                   className="ui-button ui-button-primary gap-1 px-2 py-2 text-sm md:gap-2 md:px-4"
                   title="הגדרות"
                 >
-                  <Settings className="w-4 h-4" />
-                  <span className="hidden md:inline">הגדרות</span>
+                  <Settings className="h-4 w-4" />
+                  <span>הגדרות</span>
                 </button>
 
                 {user?.is_admin && (
@@ -537,19 +587,98 @@ export default function HomeContent() {
                     className="ui-button ui-button-ghost gap-1 px-2 py-2 text-sm text-primary md:gap-2 md:px-4"
                     title="ניהול"
                   >
-                    <LayoutDashboard className="w-4 h-4" />
-                    <span className="hidden md:inline">ניהול</span>
+                    <LayoutDashboard className="h-4 w-4" />
+                    <span>ניהול</span>
                   </Link>
                 )}
 
                 <button
+                  type="button"
                   onClick={handleLogout}
                   className="ui-button ui-button-ghost gap-1 px-2 py-2 text-sm md:gap-2 md:px-4"
                   title="התנתקות"
                 >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden md:inline">יציאה</span>
+                  <LogOut className="h-4 w-4" />
+                  <span>יציאה</span>
                 </button>
+              </div>
+
+              {/* Mobile: theme + More menu */}
+              <div className="relative flex shrink-0 items-center gap-2 md:hidden">
+                <ThemeToggle />
+                <button
+                  type="button"
+                  onClick={() => setMobileMoreOpen((o) => !o)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-lg border border-white/25 bg-white/10 text-white transition-transform active:scale-95"
+                  aria-expanded={mobileMoreOpen}
+                  aria-haspopup="menu"
+                  aria-label="תפריט נוסף"
+                >
+                  <MoreVertical className="h-6 w-6" />
+                </button>
+
+                {mobileMoreOpen && (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-40 cursor-default bg-black/20"
+                      aria-label="סגור תפריט"
+                      onClick={() => setMobileMoreOpen(false)}
+                    />
+                    <div
+                      className="absolute end-0 top-full z-50 mt-2 min-w-[13.5rem] overflow-hidden rounded-xl border border-border bg-card py-1 text-text shadow-xl"
+                      role="menu"
+                    >
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-start text-sm font-medium transition-colors hover:bg-card-muted active:bg-card-muted"
+                        onClick={() => {
+                          setMobileMoreOpen(false);
+                          setIsVideoModalOpen(true);
+                        }}
+                        role="menuitem"
+                      >
+                        <Video className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                        סרטון הדרכה
+                      </button>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 px-4 py-3 text-start text-sm font-medium transition-colors hover:bg-card-muted active:bg-card-muted"
+                        onClick={() => {
+                          setMobileMoreOpen(false);
+                          router.push("/settings");
+                        }}
+                        role="menuitem"
+                      >
+                        <Settings className="h-4 w-4 shrink-0 text-primary" />
+                        הגדרות
+                      </button>
+                      {user?.is_admin && (
+                        <Link
+                          href="/admin"
+                          className="flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-card-muted active:bg-card-muted"
+                          onClick={() => setMobileMoreOpen(false)}
+                          role="menuitem"
+                        >
+                          <LayoutDashboard className="h-4 w-4 shrink-0 text-primary" />
+                          ניהול
+                        </Link>
+                      )}
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 border-t border-border px-4 py-3 text-start text-sm font-medium text-danger transition-colors hover:bg-card-muted active:bg-card-muted"
+                        onClick={() => {
+                          setMobileMoreOpen(false);
+                          void handleLogout();
+                        }}
+                        role="menuitem"
+                      >
+                        <LogOut className="h-4 w-4 shrink-0" />
+                        יציאה
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -569,9 +698,108 @@ export default function HomeContent() {
           </div>
         </div>
 
-        {/* Getting Started — hidden permanently after success + localStorage */}
+        {/* Dashboard Stats Cards */}
+        <div className="mx-auto mb-9 max-w-6xl px-4 md:px-0">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+            {/* Total Income */}
+            <div className="ui-card p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-text-muted sm:text-sm">סך הכנסות</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-text sm:text-2xl">
+                    {loadingStats ? "..." : `₪${formatMoney(stats.totalIncome)}`}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1 text-xs tabular-nums text-text-muted">
+                    <span>מע״מ: ₪{formatMoney(stats.incomeVAT)}</span>
+                    <HelpTooltip
+                      wide
+                      label="מה זה מע״מ עסקאות מהכנסות"
+                      text='זהו סכום "מע״מ העסקאות" שלך (המע״מ שגבית מלקוחות). זהו הסכום שעליך לדווח ולשלם לרשות המסים בדו״ח הדו-חודשי (עד ה-15 לחודש).'
+                    />
+                  </p>
+                </div>
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <TrendingUp className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </div>
+
+            {/* Total Expenses */}
+            <div className="ui-card p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-text-muted sm:text-sm">סך הוצאות</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-text sm:text-2xl">
+                    {loadingStats ? "..." : `₪${formatMoney(stats.totalExpenses)}`}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1 text-xs tabular-nums text-text-muted">
+                    <span>מע״מ מוכר: ₪{formatMoney(stats.expenseVAT)}</span>
+                    <HelpTooltip
+                      wide
+                      label="מה זה מע״מ התשומות בדשבורד"
+                      text='זהו סכום "מע״מ התשומות" שלך. זה המספר המדויק שעליך להזין באתר רשות המסים בדיווח הדו-חודשי (עד ה-15 לחודש).'
+                    />
+                  </p>
+                </div>
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <TrendingDown className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </div>
+
+            {/* Net Profit */}
+            <div className="ui-card p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1 text-xs font-medium text-text-muted sm:text-sm">
+                    <span>רווח נקי</span>
+                    <HelpTooltip
+                      text="זה מה שנשאר לך מהעסק אחרי שמפחיתים את ההוצאות מההכנסות."
+                      label="מה זה רווח נקי"
+                    />
+                  </p>
+                  <p className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {loadingStats ? "..." : `₪${formatMoney(stats.netProfit)}`}
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    הכנסות - הוצאות
+                  </p>
+                </div>
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <DollarSign className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </div>
+
+            {/* VAT to Pay */}
+            <div className="ui-card p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-1 text-xs font-medium text-text-muted sm:text-sm">
+                    <span>מע״מ לתשלום</span>
+                    <HelpTooltip
+                      text="זה הסכום שצפוי לשלם במע״מ אחרי קיזוז ההוצאות המוכרות."
+                      label="מה זה מע״מ לתשלום"
+                    />
+                  </p>
+                  <p className={`mt-1 text-xl font-bold tabular-nums sm:text-2xl ${stats.vatToPay >= 0 ? 'text-danger' : 'text-success'}`}>
+                    {loadingStats ? "..." : `₪${formatMoney(stats.vatToPay)}`}
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    {stats.vatToPay >= 0 ? 'חובה' : 'זכאות להחזר'}
+                  </p>
+                </div>
+                <div className="rounded-full border border-border bg-card-muted p-2.5">
+                  <Receipt className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* מתחילים — after stats, before upload; hidden after success + LS until empty account or ?resetOnboarding=1 */}
         {onboardingLSReady && (onboardingPhase === "tasks" || onboardingPhase === "success") && (
-          <div className="mx-auto mb-8 max-w-6xl px-4 md:px-0">
+          <div id="getting-started" className="mx-auto mb-8 max-w-6xl px-4 md:px-0">
             <div className="ui-toolbar rounded-xl p-5 md:p-6">
               {onboardingPhase === "success" ? (
                 <div className="py-2 text-center md:text-start">
@@ -652,96 +880,6 @@ export default function HomeContent() {
           </div>
         )}
 
-        {/* Dashboard Stats Cards */}
-        <div className="mx-auto mb-9 max-w-6xl px-4 md:px-0">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-            {/* Total Income */}
-            <div className="ui-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-text-muted sm:text-sm">סך הכנסות</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-text sm:text-2xl">
-                    {loadingStats ? "..." : `₪${formatMoney(stats.totalIncome)}`}
-                  </p>
-                  <p className="mt-1 text-xs tabular-nums text-text-muted">
-                    מע״מ: ₪{formatMoney(stats.incomeVAT)}
-                  </p>
-                </div>
-                <div className="rounded-full border border-border bg-card-muted p-2.5">
-                  <TrendingUp className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </div>
-
-            {/* Total Expenses */}
-            <div className="ui-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-text-muted sm:text-sm">סך הוצאות</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-text sm:text-2xl">
-                    {loadingStats ? "..." : `₪${formatMoney(stats.totalExpenses)}`}
-                  </p>
-                  <p className="mt-1 flex items-center gap-1 text-xs tabular-nums text-text-muted">
-                    <span>מע״מ מוכר: ₪{formatMoney(stats.expenseVAT)}</span>
-                    <HelpTooltip text="זה המע״מ על הוצאות שהמדינה מאפשרת לך לקזז." label="מה זה מע״מ מוכר" />
-                  </p>
-                </div>
-                <div className="rounded-full border border-border bg-card-muted p-2.5">
-                  <TrendingDown className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </div>
-
-            {/* Net Profit */}
-            <div className="ui-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1 text-xs font-medium text-text-muted sm:text-sm">
-                    <span>רווח נקי</span>
-                    <HelpTooltip
-                      text="זה מה שנשאר לך מהעסק אחרי שמפחיתים את ההוצאות מההכנסות."
-                      label="מה זה רווח נקי"
-                    />
-                  </p>
-                  <p className={`text-xl sm:text-2xl font-bold mt-1 tabular-nums ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {loadingStats ? "..." : `₪${formatMoney(stats.netProfit)}`}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    הכנסות - הוצאות
-                  </p>
-                </div>
-                <div className="rounded-full border border-border bg-card-muted p-2.5">
-                  <DollarSign className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </div>
-
-            {/* VAT to Pay */}
-            <div className="ui-card p-5 sm:p-6">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1 text-xs font-medium text-text-muted sm:text-sm">
-                    <span>מע״מ לתשלום</span>
-                    <HelpTooltip
-                      text="זה הסכום שצפוי לשלם במע״מ אחרי קיזוז ההוצאות המוכרות."
-                      label="מה זה מע״מ לתשלום"
-                    />
-                  </p>
-                  <p className={`mt-1 text-xl font-bold tabular-nums sm:text-2xl ${stats.vatToPay >= 0 ? 'text-danger' : 'text-success'}`}>
-                    {loadingStats ? "..." : `₪${formatMoney(stats.vatToPay)}`}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    {stats.vatToPay >= 0 ? 'חובה' : 'זכאות להחזר'}
-                  </p>
-                </div>
-                <div className="rounded-full border border-border bg-card-muted p-2.5">
-                  <Receipt className="h-6 w-6 text-primary" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Bulk Upload Area */}
         <BulkUploadArea
           onUploadComplete={(newSuggestions, currencyWarnings) => {
@@ -786,6 +924,8 @@ export default function HomeContent() {
       <AIChat />
 
       <ReportIssueFAB />
+
+      <VideoTutorialModal open={isVideoModalOpen} onOpenChange={setIsVideoModalOpen} />
 
       {toastMessage && (
         <div

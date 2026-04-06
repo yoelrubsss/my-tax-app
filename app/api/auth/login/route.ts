@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { isAdminUser } from "@/lib/admin";
+import { devLog } from "@/lib/dev-log";
 
 // Secret key for JWT (in production, use environment variable)
 const SECRET_KEY = new TextEncoder().encode(
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email, password } = body;
 
-    console.log("🔐 Login attempt:", { email });
+    devLog("🔐 Login attempt:", { email });
 
     // Validate required fields
     if (!email || !password) {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      console.log("❌ User not found:", email);
+      devLog("❌ User not found:", email);
       return NextResponse.json(
         { success: false, error: "Invalid email or password" },
         { status: 401 }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Verify password
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      console.log("❌ Invalid password for:", email);
+      devLog("❌ Invalid password for:", email);
       return NextResponse.json(
         { success: false, error: "Invalid email or password" },
         { status: 401 }
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       .setExpirationTime("7d") // Token expires in 7 days
       .sign(SECRET_KEY);
 
-    console.log(`✅ Login successful: ${user.id} (${user.email})`);
+    devLog(`✅ Login successful: ${user.id} (${user.email})`);
 
     // Create response with user data (without password)
     const response = NextResponse.json({

@@ -9,6 +9,7 @@ import {
   getReceiptScanCategoryInstructions,
   normalizeReceiptCategoryId,
 } from "@/lib/tax-knowledge";
+import { devLog } from "@/lib/dev-log";
 
 const SCAN_TIMEOUT_MS = 45_000; // PDFs can take longer than images
 
@@ -227,7 +228,7 @@ Additional rules:
         });
         uploadedFileName = uploadResponse.file.name;
         const fileUri = uploadResponse.file.uri;
-        console.log(`📄 scan-receipt: PDF uploaded to Gemini File API: ${fileUri}`);
+        devLog(`📄 scan-receipt: PDF uploaded to Gemini File API: ${fileUri}`);
 
         // Generate with file URI
         const result = await withTimeout(
@@ -323,7 +324,7 @@ Additional rules:
       }
     }
 
-    console.log(`🤖 scan-receipt Gemini response: ${content.slice(0, 200)}`);
+    devLog(`🤖 scan-receipt Gemini response: ${content.slice(0, 200)}`);
 
     // Extract JSON block from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -382,7 +383,7 @@ Additional rules:
         ? `מטבע זר זוהה: ${detectedCurrency}. יש להמיר לשקלים לפני השמירה.`
         : null;
 
-    console.log("✅ scan-receipt suggestions:", suggestions);
+    devLog("✅ scan-receipt suggestions:", suggestions);
     return NextResponse.json({ success: true, suggestions, currencyWarning });
   } catch (err: unknown) {
     console.error("scan-receipt unexpected error:", err);

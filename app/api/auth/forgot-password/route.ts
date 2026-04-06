@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Resend } from "resend";
 import crypto from "crypto";
+import { devLog } from "@/lib/dev-log";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { email } = body;
 
-    console.log("🔑 Password reset request:", { email });
+    devLog("🔑 Password reset request:", { email });
 
     // Validate email
     if (!email) {
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     // Don't reveal if user exists or not (security best practice)
     if (!user) {
-      console.log("⚠️ Password reset requested for non-existent email:", email);
+      devLog("⚠️ Password reset requested for non-existent email:", email);
       return NextResponse.json({
         success: true,
         message: "אם כתובת האימייל קיימת במערכת, נשלח אליך קישור לאיפוס סיסמה",
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
         `,
       });
 
-      console.log(`✅ Password reset email sent to: ${email}`);
+      devLog(`✅ Password reset email sent to: ${email}`);
     } catch (emailError) {
       console.error("❌ Failed to send email:", emailError);
       // Don't fail the request if email fails - token is still saved

@@ -4,6 +4,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { AI_KNOWLEDGE_BASE } from "@/lib/ai-knowledge";
 import { requireAuth } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
+import { devLog } from "@/lib/dev-log";
 
 /**
  * Fetch user context for personalized AI responses
@@ -20,7 +21,7 @@ async function getUserContext(userId: string) {
       take: 20,
     });
 
-    console.log(`📊 Fetched ${transactions.length} transactions for AI context`);
+    devLog(`📊 Fetched ${transactions.length} transactions for AI context`);
 
     const chatHistory = await prisma.chatMessage.findMany({
       where: { userId: userId },
@@ -99,7 +100,7 @@ function formatUserContext(context: Awaited<ReturnType<typeof getUserContext>>) 
 
   contextString += "\n=== END OF USER CONTEXT ===\n\n";
 
-  console.log("✅ AI Context prepared with transaction data");
+  devLog("✅ AI Context prepared with transaction data");
   return contextString;
 }
 

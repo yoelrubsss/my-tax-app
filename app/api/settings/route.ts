@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth-server";
 import { prisma } from "@/lib/prisma";
 import { formatIsraeliPhoneForDisplay } from "@/lib/phone-utils";
+import { devLog } from "@/lib/dev-log";
 
 // GET: Fetch user settings
 export async function GET(_request: NextRequest) {
@@ -107,7 +108,7 @@ export async function PUT(request: NextRequest) {
           );
         }
 
-        console.log(`📱 [SETTINGS] Phone normalized: "${whatsapp_phone}" → "${normalizedPhone}"`);
+        devLog(`📱 [SETTINGS] Phone normalized: "${whatsapp_phone}" → "${normalizedPhone}"`);
       }
     }
 
@@ -126,7 +127,7 @@ export async function PUT(request: NextRequest) {
           );
         }
 
-        console.log(`📱 [SETTINGS] Phone 2 normalized: "${whatsapp_phone_2}" → "${normalizedPhone2}"`);
+        devLog(`📱 [SETTINGS] Phone 2 normalized: "${whatsapp_phone_2}" → "${normalizedPhone2}"`);
       }
     }
 
@@ -165,7 +166,7 @@ export async function PUT(request: NextRequest) {
         where: { id: userIdStr },
         data,
       });
-      console.log(`✅ [SETTINGS] WhatsApp phone(s) updated for user ${userIdStr}`);
+      devLog(`✅ [SETTINGS] WhatsApp phone(s) updated for user ${userIdStr}`);
     }
 
     const user = await prisma.user.findUnique({

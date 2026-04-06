@@ -47,7 +47,7 @@ export default function ReportIssueFAB() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[max(1.25rem,env(safe-area-inset-bottom))] left-[max(1.25rem,env(safe-area-inset-left))] z-40 flex items-center gap-2 rounded-full bg-slate-800 px-4 py-3 text-sm font-medium text-white shadow-lg transition hover:bg-slate-700 md:bottom-8 md:left-8"
+        className="fixed bottom-28 left-[max(1rem,env(safe-area-inset-left))] z-40 flex items-center gap-2 rounded-full bg-slate-800 px-4 py-3 text-sm font-medium text-white shadow-lg transition-transform hover:bg-slate-700 active:scale-95 md:bottom-8 md:left-8"
         aria-label="דיווח על תקלה"
       >
         <MessageSquarePlus className="h-5 w-5 shrink-0" />
@@ -61,21 +61,21 @@ export default function ReportIssueFAB() {
           aria-modal="true"
           aria-labelledby="report-issue-title"
         >
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+          <div className="ui-modal w-full max-w-md rounded-xl p-6">
             <div className="mb-4 flex items-center justify-between">
-              <h2 id="report-issue-title" className="text-lg font-bold text-gray-900">
+              <h2 id="report-issue-title" className="text-lg font-bold text-text">
                 דיווח על תקלה
               </h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-lg p-1 text-gray-500 hover:bg-gray-100"
+                className="rounded-lg p-1 text-text-muted transition-colors hover:bg-card-muted hover:text-text"
                 aria-label="סגור"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <p className="mb-3 text-sm text-gray-600">
+            <p className="mb-3 text-sm text-text-muted">
               נשלחים אוטומטית: כתובת העמוד הנוכחי ומזהה המשתמש שלך.
             </p>
             <form onSubmit={handleSubmit} className="space-y-3">
@@ -84,11 +84,11 @@ export default function ReportIssueFAB() {
                 onChange={(e) => setMessage(e.target.value)}
                 rows={5}
                 placeholder="תאר מה קרה..."
-                className="w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="ui-input min-h-[7.5rem] resize-y text-sm"
                 disabled={sending}
               />
               {error && (
-                <p className="text-sm text-red-600" role="alert">
+                <p className="text-sm text-danger dark:text-red-400" role="alert">
                   {error}
                 </p>
               )}
@@ -96,7 +96,7 @@ export default function ReportIssueFAB() {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  className="ui-button ui-button-ghost px-4 py-2 text-sm"
                   disabled={sending}
                 >
                   ביטול
@@ -104,7 +104,7 @@ export default function ReportIssueFAB() {
                 <button
                   type="submit"
                   disabled={sending}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="ui-button ui-button-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
                 >
                   {sending ? (
                     <>

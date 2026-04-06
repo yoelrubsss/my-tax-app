@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Pencil, Download } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, Calendar, Tag, Trash2, AlertCircle, ExternalLink, Sparkles, ChevronLeft, ChevronRight, Pencil, Download, Search } from "lucide-react";
 import FileUpload from "./FileUpload";
 import EditTransactionModal from "./EditTransactionModal";
 import HelpTooltip from "./HelpTooltip";
@@ -85,6 +85,8 @@ export default function TransactionManager({
   // Edit modal state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
+  /** Filters rows below within the current bi-monthly period */
+  const [transactionSearch, setTransactionSearch] = useState("");
 
   // Auto-detect tax category when description changes
   useEffect(() => {
@@ -311,13 +313,30 @@ export default function TransactionManager({
     }
   };
 
-  // Display ALL transactions for the selected period (no limit)
-  const displayedTransactions = transactions;
+  const displayedTransactions = useMemo(() => {
+    const q = transactionSearch.trim().toLowerCase();
+    if (!q) return transactions;
+    return transactions.filter((t) => {
+      const desc = (t.description || "").toLowerCase();
+      const catLabel = t.category
+        ? (getCategoryById(t.category)?.label || t.category || "").toLowerCase()
+        : "";
+      const catId = (t.category || "").toLowerCase();
+      return desc.includes(q) || catLabel.includes(q) || catId.includes(q);
+    });
+  }, [transactions, transactionSearch]);
 
   return (
     <div className="mx-auto max-w-6xl px-0 sm:px-0">
       <div className="ui-card p-5 sm:p-6">
-        <h2 className="mb-4 text-xl font-bold text-text sm:mb-6 sm:text-2xl">ניהול עסקאות</h2>
+        <h2 className="mb-4 flex flex-wrap items-center gap-2 text-xl font-bold text-text sm:mb-6 sm:text-2xl">
+          <span>ניהול עסקאות</span>
+          <HelpTooltip
+            wide
+            label="אודות רשימת העסקאות"
+            text="כאן מופיעות כל ההוצאות שלך. שים לב: רק עסקאות בסטטוס 'מאושר' נספרות בסיכום המע״מ למעלה."
+          />
+        </h2>
 
         {/* Period Management Toolbar */}
         <div className="ui-toolbar mb-4 sm:mb-6">
@@ -325,8 +344,9 @@ export default function TransactionManager({
             {/* Left Side: Period Navigation */}
             <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <button
+                type="button"
                 onClick={handlePreviousPeriod}
-                className="ui-button ui-button-ghost px-2 py-2"
+                className="ui-button ui-button-ghost px-2 py-2 transition-transform active:scale-95"
                 aria-label="תקופה קודמת"
               >
                 <ChevronRight className="h-5 w-5 text-primary" />
@@ -337,35 +357,43 @@ export default function TransactionManager({
               </div>
 
               <button
+                type="button"
                 onClick={handleNextPeriod}
-                className="ui-button ui-button-ghost px-2 py-2"
+                className="ui-button ui-button-ghost px-2 py-2 transition-transform active:scale-95"
                 aria-label="תקופה הבאה"
               >
                 <ChevronLeft className="h-5 w-5 text-primary" />
               </button>
 
-              {/* Download Bi-Monthly VAT Report Button */}
-              <button
-                onClick={handleDownloadCSV}
-                className="ui-button ui-button-ghost text-xs text-primary sm:mr-2 sm:text-sm"
-                title="הורד דוח מע״מ דו-חודשי מקיף (הכנסות, הוצאות וסיכום)"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                <span className="hidden sm:inline">הורד דוח דו-חודשי</span>
-              </button>
+              {/* Primary export: Excel/CSV for selected VAT period (see HelpTooltip) */}
+              <span className="inline-flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleDownloadCSV}
+                  className="ui-button ui-button-primary gap-2 text-xs shadow-sm transition-transform active:scale-95 sm:mr-0 sm:text-sm"
+                  title="הורד דוח מע״מ דו-חודשי ל-Excel (CSV)"
+                >
+                  <Download className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="hidden sm:inline">ייצוא לרואה חשבון</span>
+                  <span className="sm:hidden">ייצוא</span>
+                </button>
+                <HelpTooltip
+                  wide
+                  label="אודות ייצוא לאקסל"
+                  text='כאן תוכלו לייצא קובץ אקסל המרכז את כל הנתונים שלכם לתקופה שנבחרה. את הקובץ הזה שולחים לרואה החשבון בסוף כל חודשיים לצורך הגשת הדו״ח.'
+                />
+              </span>
             </div>
 
-            {/* Right Side: Deadline Badge & Countdown */}
-            <div className="flex items-center flex-wrap gap-2">
-              {/* Deadline Badge */}
+            {/* Right Side: Deadline Badge & Countdown — centered on mobile */}
+            <div className="flex w-full flex-col items-center justify-center gap-2 text-center sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-2 sm:text-start">
               <div className="text-xs text-text-muted md:text-sm">
                 <span className="font-medium">להגשה עד: </span>
-                <span className="font-semibold">
+                <span className="font-semibold tabular-nums">
                   {getDeadline(currentPeriod).toLocaleDateString('he-IL')}
                 </span>
               </div>
 
-              {/* Countdown with Color Coding */}
               {(() => {
                 const deadlineStatus = getDeadlineStatus(currentPeriod);
                 const colorClasses = {
@@ -376,7 +404,9 @@ export default function TransactionManager({
                 };
 
                 return (
-                  <div className={`px-3 py-1 md:px-4 md:py-2 rounded-full border-2 font-semibold text-xs md:text-sm ${colorClasses[deadlineStatus.status]}`}>
+                  <div
+                    className={`inline-flex min-h-[2rem] items-center justify-center rounded-full border-2 px-4 py-1.5 text-xs font-semibold leading-snug md:min-h-0 md:px-5 md:py-2 md:text-sm ${colorClasses[deadlineStatus.status]}`}
+                  >
                     {deadlineStatus.message}
                   </div>
                 );
@@ -388,8 +418,9 @@ export default function TransactionManager({
         {/* Tabs */}
         <div className="flex gap-1 sm:gap-2 mb-4 sm:mb-6 border-b overflow-x-auto">
           <button
+            type="button"
             onClick={() => setActiveTab("income")}
-            className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors shrink-0 ${
+            className={`flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-transform active:scale-95 sm:px-6 sm:py-3 sm:text-base ${
               activeTab === "income"
                 ? "border-b-2 border-primary text-primary"
                 : "text-text-muted hover:text-text"
@@ -399,8 +430,9 @@ export default function TransactionManager({
             הכנסה
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab("expense")}
-            className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3 text-sm sm:text-base font-medium transition-colors shrink-0 ${
+            className={`flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium transition-transform active:scale-95 sm:px-6 sm:py-3 sm:text-base ${
               activeTab === "expense"
                 ? "border-b-2 border-primary text-primary"
                 : "text-text-muted hover:text-text"
@@ -632,11 +664,11 @@ export default function TransactionManager({
           <button
             type="submit"
             disabled={loading}
-            className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-md font-medium text-white transition-colors ${
+            className={`flex w-full items-center justify-center gap-2 rounded-md px-6 py-3 font-medium text-white transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${
               activeTab === "income"
                 ? "bg-green-600 hover:bg-green-700"
                 : "bg-red-600 hover:bg-red-700"
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            }`}
           >
             <Plus className="w-5 h-5" />
             {loading ? "שומר..." : "הוסף עסקה"}
@@ -645,12 +677,35 @@ export default function TransactionManager({
 
         {/* Transactions List */}
         <div>
+          <div className="mb-3 space-y-2">
+            <label htmlFor="transaction-search" className="block text-sm font-medium text-text">
+              חיפוש בעסקאות (לפי תקופה נוכחית)
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
+                aria-hidden
+              />
+              <input
+                id="transaction-search"
+                type="search"
+                value={transactionSearch}
+                onChange={(e) => setTransactionSearch(e.target.value)}
+                placeholder="ספק, תיאור או קטגוריה..."
+                className="ui-input ps-10"
+                autoComplete="off"
+              />
+            </div>
+          </div>
           <h3 className="mb-4 text-lg font-semibold text-text">
-            עסקאות לתקופה ({displayedTransactions.length})
+            עסקאות לתקופה ({displayedTransactions.length}
+            {transactionSearch.trim() ? ` מתוך ${transactions.length}` : ""})
           </h3>
           {displayedTransactions.length === 0 ? (
             <p className="py-8 text-center text-text-muted">
-              אין עסקאות להצגה. הוסף את העסקה הראשונה שלך!
+              {transactions.length === 0
+                ? "אין עסקאות להצגה. הוסף את העסקה הראשונה שלך!"
+                : "אין תוצאות התואמות לחיפוש — נסה מילה אחרת או נקה את השדה."}
             </p>
           ) : (
             <>
@@ -661,7 +716,7 @@ export default function TransactionManager({
                 return (
                   <div
                     key={`m-${transaction.id}`}
-                    className="ui-card rounded-2xl p-4"
+                    className="ui-card rounded-2xl p-4 transition-transform active:scale-[0.98]"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
@@ -714,6 +769,23 @@ export default function TransactionManager({
                         )}
                       </div>
                     </div>
+                    {transaction.type === "expense" &&
+                      transaction.recognized_vat_amount !== undefined &&
+                      transaction.vat_amount > 0 &&
+                      transaction.recognized_vat_amount < transaction.vat_amount && (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs dark:border-orange-900/50 dark:bg-orange-950/40">
+                          <span className="font-semibold text-orange-900 dark:text-orange-200">
+                            מוכר חלקית
+                          </span>
+                          <span className="font-bold tabular-nums text-orange-800 dark:text-orange-100">
+                            {(
+                              (transaction.recognized_vat_amount / transaction.vat_amount) *
+                              100
+                            ).toFixed(0)}
+                            %
+                          </span>
+                        </div>
+                      )}
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
                       <div className="min-w-0 flex-1">
                         <FileUpload

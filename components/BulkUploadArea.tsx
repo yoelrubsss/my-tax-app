@@ -11,6 +11,7 @@ import {
   FileImage,
   X,
 } from "lucide-react";
+import HelpTooltip from "@/components/HelpTooltip";
 
 // "done"         = draft created + AI extracted data successfully
 // "done-partial"  = draft created but AI scan failed (reason stored in statusText)
@@ -277,6 +278,14 @@ export default function BulkUploadArea({
   // ── Render ────────────────────────────────────────────────────
   return (
     <div id="bulk-upload" className="mx-auto mb-8 max-w-6xl scroll-mt-24">
+      <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
+        <h2 className="text-lg font-bold text-text md:text-xl">העלאת קבלות ואחסון</h2>
+        <HelpTooltip
+          wide
+          label="אחסון קבלות"
+          text="כל קבלה נשמרת בענן שלנו באופן מאובטח. המלצת זהב: למרות שהכל מגובה אצלנו, תמיד כדאי לשמור עותק נוסף (פיזי או דיגיטלי) ליתר ביטחון."
+        />
+      </div>
       {/* Drop Zone */}
       <div
         onDrop={handleDrop}

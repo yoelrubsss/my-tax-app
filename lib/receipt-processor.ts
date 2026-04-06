@@ -17,6 +17,7 @@ import {
   getReceiptScanCategoryInstructions,
   normalizeReceiptCategoryId,
 } from "@/lib/tax-knowledge";
+import { devLog } from "@/lib/dev-log";
 
 const SCAN_TIMEOUT_MS = 45_000;
 
@@ -46,14 +47,14 @@ export async function uploadReceiptToStorage(
   mimeType: string
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
   try {
-    console.log(`📤 [UPLOAD] Starting upload for user ${userId}, file: ${fileName}, size: ${buffer.length} bytes`);
+    devLog(`📤 [UPLOAD] Starting upload for user ${userId}, file: ${fileName}, size: ${buffer.length} bytes`);
 
     // Generate storage path: userId/timestamp-filename
     const timestamp = Date.now();
     const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${userId}/${timestamp}-${sanitizedFileName}`;
 
-    console.log(`📤 [UPLOAD] Storage path: ${storagePath}`);
+    devLog(`📤 [UPLOAD] Storage path: ${storagePath}`);
 
     // Upload to Supabase Storage bucket "receipts"
     const { error: uploadError } = await supabase.storage
@@ -76,7 +77,7 @@ export async function uploadReceiptToStorage(
       data: { publicUrl },
     } = supabase.storage.from("receipts").getPublicUrl(storagePath);
 
-    console.log(`✅ [UPLOAD] Receipt uploaded successfully: ${publicUrl}`);
+    devLog(`✅ [UPLOAD] Receipt uploaded successfully: ${publicUrl}`);
     return { success: true, publicUrl };
   } catch (error) {
     console.error("❌ [UPLOAD] Error uploading receipt:", error);
@@ -94,7 +95,7 @@ export async function processReceiptWithGemini(
   mimeType: string
 ): Promise<ReceiptScanResult | null> {
   try {
-    console.log(`🤖 [GEMINI] Starting Gemini processing, buffer size: ${imageBuffer.length}, mimeType: ${mimeType}`);
+    devLog(`🤖 [GEMINI] Starting Gemini processing, buffer size: ${imageBuffer.length}, mimeType: ${mimeType}`);
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -102,12 +103,12 @@ export async function processReceiptWithGemini(
       return null;
     }
 
-    console.log("🤖 [GEMINI] API key found, initializing GoogleGenerativeAI");
+    devLog("🤖 [GEMINI] API key found, initializing GoogleGenerativeAI");
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    console.log("🤖 [GEMINI] Model initialized: gemini-2.5-flash");
+    devLog("🤖 [GEMINI] Model initialized: gemini-2.5-flash");
 
     const prompt = `You are a strict Israeli VAT receipt scanner for an Authorized Dealer (עוסק מורשה).
 
@@ -140,11 +141,11 @@ Additional rules:
 - ALWAYS detect the currency: look for ₪ or "ILS" or "NIS" = "ILS", $ or "USD" = "USD", € or "EUR" = "EUR", £ or "GBP" = "GBP"
 - If no clear currency symbol, return null for detectedCurrency`;
 
-    console.log("🤖 [GEMINI] Converting buffer to base64...");
+    devLog("🤖 [GEMINI] Converting buffer to base64...");
     const base64Data = imageBuffer.toString("base64");
-    console.log(`🤖 [GEMINI] Base64 length: ${base64Data.length} characters`);
+    devLog(`🤖 [GEMINI] Base64 length: ${base64Data.length} characters`);
 
-    console.log("🤖 [GEMINI] Sending request to Gemini API...");
+    devLog("🤖 [GEMINI] Sending request to Gemini API...");
 
     const result = await Promise.race([
       model.generateContent([
@@ -156,11 +157,11 @@ Additional rules:
       ),
     ]);
 
-    console.log("🤖 [GEMINI] Response received from Gemini API");
+    devLog("🤖 [GEMINI] Response received from Gemini API");
 
     const content = result.response.text().trim();
-    console.log(`🤖 [GEMINI] Full response (first 500 chars): ${content.slice(0, 500)}`);
-    console.log(`🤖 [GEMINI] Full response length: ${content.length} characters`);
+    devLog(`🤖 [GEMINI] Full response (first 500 chars): ${content.slice(0, 500)}`);
+    devLog(`🤖 [GEMINI] Full response length: ${content.length} characters`);
 
     // Extract JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -170,12 +171,12 @@ Additional rules:
       return null;
     }
 
-    console.log(`🤖 [GEMINI] JSON extracted: ${jsonMatch[0]}`);
+    devLog(`🤖 [GEMINI] JSON extracted: ${jsonMatch[0]}`);
 
     let parsed;
     try {
       parsed = JSON.parse(jsonMatch[0]);
-      console.log("🤖 [GEMINI] JSON parsed successfully:", JSON.stringify(parsed, null, 2));
+      devLog("🤖 [GEMINI] JSON parsed successfully:", JSON.stringify(parsed, null, 2));
     } catch (parseError) {
       console.error("❌ [GEMINI] JSON parse error:", parseError);
       console.error("❌ [GEMINI] Failed to parse:", jsonMatch[0]);
@@ -213,7 +214,7 @@ Additional rules:
       confidence,
     };
 
-    console.log("✅ [GEMINI] Extracted and validated scan result:", JSON.stringify(scanResult, null, 2));
+    devLog("✅ [GEMINI] Extracted and validated scan result:", JSON.stringify(scanResult, null, 2));
 
     // Log warnings for null values
     if (!merchant) console.warn("⚠️ [GEMINI] Merchant is null");
@@ -247,16 +248,16 @@ export async function processReceipt(
   mimeType: string
 ): Promise<ReceiptProcessingResult> {
   try {
-    console.log(`\n========================================`);
-    console.log(`📄 [PROCESS] Starting receipt processing`);
-    console.log(`📄 [PROCESS] File: ${fileName}`);
-    console.log(`📄 [PROCESS] User: ${userId}`);
-    console.log(`📄 [PROCESS] MIME: ${mimeType}`);
-    console.log(`📄 [PROCESS] Size: ${imageBuffer.length} bytes`);
-    console.log(`========================================\n`);
+    devLog(`\n========================================`);
+    devLog(`📄 [PROCESS] Starting receipt processing`);
+    devLog(`📄 [PROCESS] File: ${fileName}`);
+    devLog(`📄 [PROCESS] User: ${userId}`);
+    devLog(`📄 [PROCESS] MIME: ${mimeType}`);
+    devLog(`📄 [PROCESS] Size: ${imageBuffer.length} bytes`);
+    devLog(`========================================\n`);
 
     // Step 1: Upload to Supabase Storage
-    console.log("📄 [PROCESS] Step 1/2: Uploading to Supabase Storage...");
+    devLog("📄 [PROCESS] Step 1/2: Uploading to Supabase Storage...");
     const uploadResult = await uploadReceiptToStorage(
       imageBuffer,
       userId,
@@ -274,10 +275,10 @@ export async function processReceipt(
       };
     }
 
-    console.log(`✅ [PROCESS] Upload complete: ${uploadResult.publicUrl}`);
+    devLog(`✅ [PROCESS] Upload complete: ${uploadResult.publicUrl}`);
 
     // Step 2: Process with Gemini AI
-    console.log("\n📄 [PROCESS] Step 2/2: Processing with Gemini AI...");
+    devLog("\n📄 [PROCESS] Step 2/2: Processing with Gemini AI...");
     const scanResult = await processReceiptWithGemini(imageBuffer, mimeType);
 
     if (!scanResult) {
@@ -291,11 +292,11 @@ export async function processReceipt(
       };
     }
 
-    console.log("\n========================================");
-    console.log("✅ [PROCESS] Receipt processing complete!");
-    console.log("✅ [PROCESS] Receipt URL:", uploadResult.publicUrl);
-    console.log("✅ [PROCESS] Scan result:", JSON.stringify(scanResult, null, 2));
-    console.log("========================================\n");
+    devLog("\n========================================");
+    devLog("✅ [PROCESS] Receipt processing complete!");
+    devLog("✅ [PROCESS] Receipt URL:", uploadResult.publicUrl);
+    devLog("✅ [PROCESS] Scan result:", JSON.stringify(scanResult, null, 2));
+    devLog("========================================\n");
 
     return {
       success: true,

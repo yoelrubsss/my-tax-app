@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth-server";
 import { getCategoryById } from "@/lib/tax-knowledge";
+import { devLog } from "@/lib/dev-log";
 
 /**
  * Helper function to get Hebrew month name
@@ -73,9 +74,9 @@ export async function GET(request: NextRequest) {
     // Generate period label for display
     const periodLabel = `${getMonthName(startMonth)}-${getMonthName(endMonth)} ${year}`;
 
-    console.log(`📥 GET /api/export - User: ${userIdStr}, Month: ${monthParam}`);
-    console.log(`   VAT Period ${periodIndex}: ${periodLabel}`);
-    console.log(`   Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+    devLog(`📥 GET /api/export - User: ${userIdStr}, Month: ${monthParam}`);
+    devLog(`   VAT Period ${periodIndex}: ${periodLabel}`);
+    devLog(`   Date range: ${startDate.toISOString()} to ${endDate.toISOString()}`);
 
     // ═══════════════════════════════════════════════════════════════
     // PERFORMANCE OPTIMIZED: Single query to fetch user + transactions
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    console.log(`✅ Found ${transactions.length} completed transaction(s) for VAT Period ${periodIndex}`);
+    devLog(`✅ Found ${transactions.length} completed transaction(s) for VAT Period ${periodIndex}`);
 
     // Generate professional CSV report
     const csvContent = generateProfessionalReport(transactions, periodIndex, periodLabel);

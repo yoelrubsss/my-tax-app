@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { devLog } from "@/lib/dev-log";
 
 // POST: Reset password with token
 export async function POST(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { token, password } = body;
 
-    console.log("🔑 Password reset attempt with token");
+    devLog("🔑 Password reset attempt with token");
 
     // Validate required fields
     if (!token || !password) {
@@ -39,7 +40,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (!resetToken) {
-      console.log("❌ Invalid reset token");
+      devLog("❌ Invalid reset token");
       return NextResponse.json(
         { success: false, error: "קישור איפוס הסיסמה אינו תקין" },
         { status: 400 }
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
 
     // Check if token is expired
     if (new Date() > resetToken.expiresAt) {
-      console.log("❌ Expired reset token");
+      devLog("❌ Expired reset token");
       // Delete expired token
       await prisma.passwordReset.delete({
         where: { id: resetToken.id },
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
       where: { userId: resetToken.userId },
     });
 
-    console.log(`✅ Password reset successful for user: ${resetToken.user.email}`);
+    devLog(`✅ Password reset successful for user: ${resetToken.user.email}`);
 
     return NextResponse.json({
       success: true,

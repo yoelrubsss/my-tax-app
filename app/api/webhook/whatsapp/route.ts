@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { processReceipt } from "@/lib/receipt-processor";
+import { devLog } from "@/lib/dev-log";
 
 const WHATSAPP_API_URL = "https://graph.facebook.com/v18.0";
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
@@ -50,13 +51,13 @@ interface WhatsAppWebhookEntry {
 
 // GET: Webhook verification (required by WhatsApp)
 export async function GET(request: NextRequest) {
-  console.log("🚀 Webhook trigger received!");
+  devLog("🚀 Webhook trigger received!");
   const searchParams = request.nextUrl.searchParams;
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
 
-  console.log("📲 WhatsApp webhook verification request:", {
+  devLog("📲 WhatsApp webhook verification request:", {
     mode,
     token,
     challenge,
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
 
   // Check if verification token matches
   if (mode === "subscribe" && token === WHATSAPP_VERIFY_TOKEN) {
-    console.log("✅ WhatsApp webhook verified - returning challenge:", challenge);
+    devLog("✅ WhatsApp webhook verified - returning challenge:", challenge);
     // Return challenge as plain text with explicit content-type
     return new NextResponse(challenge, {
       status: 200,
@@ -76,49 +77,49 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  console.log("❌ WhatsApp webhook verification failed - mode or token mismatch");
+  devLog("❌ WhatsApp webhook verification failed - mode or token mismatch");
   return new NextResponse("Forbidden", { status: 403 });
 }
 
 // POST: Handle incoming WhatsApp messages
 export async function POST(request: NextRequest) {
-  console.log(
+  devLog(
     "[WhatsApp POST] hit server",
     new Date().toISOString(),
     request.nextUrl?.pathname ?? ""
   );
   try {
     const body = await request.json();
-    console.log("📲 WhatsApp webhook received:", JSON.stringify(body, null, 2));
+    devLog("📲 WhatsApp webhook received:", JSON.stringify(body, null, 2));
 
     // Validate webhook structure
     if (!body.object || body.object !== "whatsapp_business_account") {
-      console.log("⚠️ Not a WhatsApp business webhook");
+      devLog("⚠️ Not a WhatsApp business webhook");
       return NextResponse.json({ status: "ignored" }, { status: 200 });
     }
 
     const entry = body.entry?.[0] as WhatsAppWebhookEntry | undefined;
     if (!entry) {
-      console.log("⚠️ No entry in webhook");
+      devLog("⚠️ No entry in webhook");
       return NextResponse.json({ status: "no_entry" }, { status: 200 });
     }
 
     const changes = entry.changes?.[0];
     if (!changes) {
-      console.log("⚠️ No changes in webhook");
+      devLog("⚠️ No changes in webhook");
       return NextResponse.json({ status: "no_changes" }, { status: 200 });
     }
 
     const value = changes.value;
     const messages = value?.messages;
     if (!messages || messages.length === 0) {
-      console.log("⚠️ No messages in webhook");
+      devLog("⚠️ No messages in webhook");
       return NextResponse.json({ status: "no_messages" }, { status: 200 });
     }
 
     const firstMsg = messages[0];
-    console.log("[WhatsApp POST] first message id (wamid for reactions):", firstMsg?.id);
-    console.log("[WhatsApp POST] first message keys:", firstMsg ? Object.keys(firstMsg) : []);
+    devLog("[WhatsApp POST] first message id (wamid for reactions):", firstMsg?.id);
+    devLog("[WhatsApp POST] first message keys:", firstMsg ? Object.keys(firstMsg) : []);
 
     const metadata = value?.metadata;
 
@@ -156,23 +157,23 @@ async function sendWhatsAppReaction(
   toWaId: string,
   incomingMessageId: string
 ): Promise<void> {
-  console.log("\n========== [REACTION] sendWhatsAppReaction ==========");
-  console.log("[REACTION] phone_number_id (path):", phoneNumberId);
-  console.log("[REACTION] to (recipient WA id, must match message sender):", toWaId);
-  console.log(
+  devLog("\n========== [REACTION] sendWhatsAppReaction ==========");
+  devLog("[REACTION] phone_number_id (path):", phoneNumberId);
+  devLog("[REACTION] to (recipient WA id, must match message sender):", toWaId);
+  devLog(
     "[REACTION] message_id (incoming message wamid — must be exact from webhook):",
     incomingMessageId
   );
 
   if (!WHATSAPP_TOKEN) {
     console.warn("⚠️ [REACTION] WHATSAPP_TOKEN missing — skipping reaction");
-    console.log("========================================\n");
+    devLog("========================================\n");
     return;
   }
 
   if (!incomingMessageId?.trim()) {
     console.error("❌ [REACTION] incomingMessageId is empty — cannot react");
-    console.log("========================================\n");
+    devLog("========================================\n");
     return;
   }
 
@@ -188,8 +189,8 @@ async function sendWhatsAppReaction(
     },
   };
 
-  console.log("[REACTION] POST URL:", url);
-  console.log("[REACTION] Request body:", JSON.stringify(payload, null, 2));
+  devLog("[REACTION] POST URL:", url);
+  devLog("[REACTION] Request body:", JSON.stringify(payload, null, 2));
 
   let res: Response;
   try {
@@ -203,19 +204,19 @@ async function sendWhatsAppReaction(
     });
   } catch (err) {
     console.error("❌ [REACTION] Network/fetch error:", err);
-    console.log("========================================\n");
+    devLog("========================================\n");
     return;
   }
 
   const responseText = await res.text();
-  console.log("[REACTION] HTTP status:", res.status, res.statusText);
+  devLog("[REACTION] HTTP status:", res.status, res.statusText);
 
   let parsedBody: unknown = null;
   try {
     parsedBody = responseText ? JSON.parse(responseText) : null;
-    console.log("[REACTION] Response JSON:", JSON.stringify(parsedBody, null, 2));
+    devLog("[REACTION] Response JSON:", JSON.stringify(parsedBody, null, 2));
   } catch {
-    console.log("[REACTION] Response raw (non-JSON):", responseText.slice(0, 2000));
+    devLog("[REACTION] Response raw (non-JSON):", responseText.slice(0, 2000));
   }
 
   if (!res.ok) {
@@ -247,22 +248,22 @@ async function sendWhatsAppReaction(
     } else {
       console.error("[REACTION] Non-JSON or unexpected body:", responseText.slice(0, 2000));
     }
-    console.log("========================================\n");
+    devLog("========================================\n");
     return;
   }
 
   const messages = parsedBody && typeof parsedBody === "object" && parsedBody !== null && "messages" in parsedBody
     ? (parsedBody as { messages?: Array<{ id?: string }> }).messages
     : undefined;
-  console.log("✅ [REACTION] Meta accepted reaction. messages:", messages);
-  console.log("========================================\n");
+  devLog("✅ [REACTION] Meta accepted reaction. messages:", messages);
+  devLog("========================================\n");
 }
 
 async function processWhatsAppMessage(
   message: WhatsAppMessage,
   metadata?: WhatsAppWebhookMetadata
 ) {
-  console.log(
+  devLog(
     `[WhatsApp POST] processWhatsAppMessage — from=${message.from} type=${message.type} id=${message.id} (reaction.message_id must match this wamid)`
   );
 
@@ -275,36 +276,36 @@ async function processWhatsAppMessage(
     mediaId = message.image.id;
     mimeType = message.image.mime_type;
     fileName = `whatsapp-${message.id}.jpg`;
-    console.log(`📷 Image message detected: ${mimeType}`);
+    devLog(`📷 Image message detected: ${mimeType}`);
   } else if (message.type === "document" && message.document) {
     // Only process PDF documents
     if (message.document.mime_type === "application/pdf") {
       mediaId = message.document.id;
       mimeType = message.document.mime_type;
       fileName = message.document.filename || `whatsapp-${message.id}.pdf`;
-      console.log(`📄 PDF document detected: ${fileName}`);
+      devLog(`📄 PDF document detected: ${fileName}`);
     } else {
-      console.log(
+      devLog(
         `⚠️ Document type not supported: ${message.document.mime_type}, ignoring`
       );
-      console.log(
+      devLog(
         "[REACTION] Skipped — early exit: unsupported document MIME (no receipt processing, no reaction)"
       );
       return;
     }
   } else {
-    console.log(
+    devLog(
       `⚠️ Message type not supported: ${message.type}, ignoring`
     );
-    console.log(
+    devLog(
       "[REACTION] Skipped — early exit: message type is not image/document (reaction only runs after successful draft)"
     );
     return;
   }
 
   if (!mediaId || !mimeType) {
-    console.log("⚠️ No valid media found in message");
-    console.log("[REACTION] Skipped — early exit: no mediaId/mimeType");
+    devLog("⚠️ No valid media found in message");
+    devLog("[REACTION] Skipped — early exit: no mediaId/mimeType");
     return;
   }
 
@@ -319,28 +320,28 @@ async function processWhatsAppMessage(
   });
 
   if (!user) {
-    console.log(`⚠️ No user found with WhatsApp phone: ${message.from}`);
-    console.log(
+    devLog(`⚠️ No user found with WhatsApp phone: ${message.from}`);
+    devLog(
       "[REACTION] Skipped — early exit: no linked user for this sender (cannot create draft; reaction not sent)"
     );
     // TODO: Send WhatsApp message to user explaining they need to link their account
     return;
   }
 
-  console.log(`✅ Found user: ${user.email} (${user.id})`);
+  devLog(`✅ Found user: ${user.email} (${user.id})`);
 
   // Download media from WhatsApp
-  console.log(`📥 Downloading media ID: ${mediaId}`);
+  devLog(`📥 Downloading media ID: ${mediaId}`);
   const downloadResult = await downloadWhatsAppMedia(mediaId);
   if (!downloadResult.success || !downloadResult.buffer) {
     console.error("❌ Failed to download media from WhatsApp");
-    console.log(
+    devLog(
       "[REACTION] Skipped — early exit: media download failed (no draft; reaction not sent)"
     );
     return;
   }
 
-  console.log(
+  devLog(
     `📥 Downloaded ${mimeType === "application/pdf" ? "PDF" : "image"}: ${downloadResult.buffer.length} bytes`
   );
 
@@ -354,37 +355,37 @@ async function processWhatsAppMessage(
 
   if (!processingResult.success) {
     console.error("❌ Receipt processing failed:", processingResult.error);
-    console.log(
+    devLog(
       "[REACTION] Skipped — early exit: processReceipt failed (no draft; reaction not sent)"
     );
     return;
   }
 
-  console.log("\n========================================");
-  console.log("✅ [WEBHOOK] Receipt processed successfully!");
-  console.log("✅ [WEBHOOK] Receipt URL:", processingResult.receiptUrl);
-  console.log("✅ [WEBHOOK] Scan result:", JSON.stringify(processingResult.scanResult, null, 2));
-  console.log("========================================\n");
+  devLog("\n========================================");
+  devLog("✅ [WEBHOOK] Receipt processed successfully!");
+  devLog("✅ [WEBHOOK] Receipt URL:", processingResult.receiptUrl);
+  devLog("✅ [WEBHOOK] Scan result:", JSON.stringify(processingResult.scanResult, null, 2));
+  devLog("========================================\n");
 
   // Create draft transaction with processed data
-  console.log("💾 [WEBHOOK] Creating draft transaction...");
+  devLog("💾 [WEBHOOK] Creating draft transaction...");
   const transaction = await createDraftTransaction(
     user.id,
     processingResult.receiptUrl,
     processingResult.scanResult
   );
 
-  console.log(`✅ [WEBHOOK] Draft transaction created for user ${user.email}`);
-  console.log(`✅ [WEBHOOK] Transaction ID: ${transaction.id}`);
-  console.log(`✅ [WEBHOOK] Merchant: ${transaction.merchant}`);
-  console.log(`✅ [WEBHOOK] Amount: ${transaction.amount}`);
-  console.log(`✅ [WEBHOOK] Date: ${transaction.date}`);
+  devLog(`✅ [WEBHOOK] Draft transaction created for user ${user.email}`);
+  devLog(`✅ [WEBHOOK] Transaction ID: ${transaction.id}`);
+  devLog(`✅ [WEBHOOK] Merchant: ${transaction.merchant}`);
+  devLog(`✅ [WEBHOOK] Amount: ${transaction.amount}`);
+  devLog(`✅ [WEBHOOK] Date: ${transaction.date}`);
 
   // Immediate ✅ reaction on the incoming receipt message (same request — no extra session)
   const phoneNumberId = metadata?.phone_number_id;
-  console.log("[REACTION] Pre-check — metadata:", JSON.stringify(metadata ?? null));
-  console.log("[REACTION] Pre-check — message.id (wamid for reaction):", message.id);
-  console.log("[REACTION] Pre-check — message.from (to field):", message.from);
+  devLog("[REACTION] Pre-check — metadata:", JSON.stringify(metadata ?? null));
+  devLog("[REACTION] Pre-check — message.id (wamid for reaction):", message.id);
+  devLog("[REACTION] Pre-check — message.from (to field):", message.from);
 
   if (!phoneNumberId) {
     console.warn(
@@ -438,7 +439,7 @@ async function downloadWhatsAppMedia(
       return { success: false, error: "No media URL" };
     }
 
-    console.log(`📡 Downloading from: ${mediaUrl}`);
+    devLog(`📡 Downloading from: ${mediaUrl}`);
 
     // Step 2: Download media file
     const mediaResponse = await fetch(mediaUrl, {
@@ -478,13 +479,13 @@ async function createDraftTransaction(
   } | null
 ) {
   try {
-    console.log("\n========================================");
-    console.log("💾 [CREATE_DRAFT] Starting transaction creation");
-    console.log("💾 [CREATE_DRAFT] Input parameters:");
-    console.log("  - userId:", userId);
-    console.log("  - receiptUrl:", receiptUrl);
-    console.log("  - scanResult:", JSON.stringify(scanResult, null, 2));
-    console.log("========================================\n");
+    devLog("\n========================================");
+    devLog("💾 [CREATE_DRAFT] Starting transaction creation");
+    devLog("💾 [CREATE_DRAFT] Input parameters:");
+    devLog("  - userId:", userId);
+    devLog("  - receiptUrl:", receiptUrl);
+    devLog("  - scanResult:", JSON.stringify(scanResult, null, 2));
+    devLog("========================================\n");
 
     // Match manual flow logic exactly (from transactions/route.ts line 136-140)
     const finalAmount = scanResult?.totalAmount || 0;
@@ -504,14 +505,14 @@ async function createDraftTransaction(
     // For now, default to 0 since category might not be confirmed yet
     const recognizedVatAmount = 0;
 
-    console.log("💾 [CREATE_DRAFT] Processed values:");
-    console.log("  - merchant:", finalMerchant);
-    console.log("  - description:", finalDescription);
-    console.log("  - amount:", finalAmount);
-    console.log("  - vatAmount:", vatAmount);
-    console.log("  - netAmount:", netAmount);
-    console.log("  - category:", finalCategory);
-    console.log("  - date:", finalDate);
+    devLog("💾 [CREATE_DRAFT] Processed values:");
+    devLog("  - merchant:", finalMerchant);
+    devLog("  - description:", finalDescription);
+    devLog("  - amount:", finalAmount);
+    devLog("  - vatAmount:", vatAmount);
+    devLog("  - netAmount:", netAmount);
+    devLog("  - category:", finalCategory);
+    devLog("  - date:", finalDate);
 
     // Match manual flow transaction structure exactly (line 170-186)
     const transactionData = {
@@ -531,26 +532,26 @@ async function createDraftTransaction(
       isRecognized: true,
     };
 
-    console.log("\n💾 [CREATE_DRAFT] Transaction data to be created:");
-    console.log(JSON.stringify(transactionData, null, 2));
+    devLog("\n💾 [CREATE_DRAFT] Transaction data to be created:");
+    devLog(JSON.stringify(transactionData, null, 2));
 
     // Create draft transaction (same structure as manual upload flow)
     const transaction = await prisma.transaction.create({
       data: transactionData,
     });
 
-    console.log("\n========================================");
-    console.log("✅ [CREATE_DRAFT] Transaction created successfully!");
-    console.log("✅ [CREATE_DRAFT] Transaction ID:", transaction.id);
-    console.log("✅ [CREATE_DRAFT] Merchant:", transaction.merchant);
-    console.log("✅ [CREATE_DRAFT] Description:", transaction.description);
-    console.log("✅ [CREATE_DRAFT] Amount:", transaction.amount);
-    console.log("✅ [CREATE_DRAFT] VAT Amount:", transaction.vatAmount);
-    console.log("✅ [CREATE_DRAFT] Date:", transaction.date);
-    console.log("✅ [CREATE_DRAFT] Category:", transaction.category);
-    console.log("✅ [CREATE_DRAFT] Status:", transaction.status);
-    console.log("✅ [CREATE_DRAFT] Receipt URL:", transaction.receiptUrl);
-    console.log("========================================\n");
+    devLog("\n========================================");
+    devLog("✅ [CREATE_DRAFT] Transaction created successfully!");
+    devLog("✅ [CREATE_DRAFT] Transaction ID:", transaction.id);
+    devLog("✅ [CREATE_DRAFT] Merchant:", transaction.merchant);
+    devLog("✅ [CREATE_DRAFT] Description:", transaction.description);
+    devLog("✅ [CREATE_DRAFT] Amount:", transaction.amount);
+    devLog("✅ [CREATE_DRAFT] VAT Amount:", transaction.vatAmount);
+    devLog("✅ [CREATE_DRAFT] Date:", transaction.date);
+    devLog("✅ [CREATE_DRAFT] Category:", transaction.category);
+    devLog("✅ [CREATE_DRAFT] Status:", transaction.status);
+    devLog("✅ [CREATE_DRAFT] Receipt URL:", transaction.receiptUrl);
+    devLog("========================================\n");
 
     return transaction;
   } catch (error) {

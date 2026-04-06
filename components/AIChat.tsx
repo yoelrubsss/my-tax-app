@@ -6,6 +6,7 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, X, ArrowLeft, Bot, Square } from "lucide-react";
 import { FAQ_QUICK_ANSWERS } from "@/lib/ai-knowledge";
+import HelpTooltip from "@/components/HelpTooltip";
 
 function textFromMessage(m: UIMessage): string {
   if (!m.parts?.length) return "";
@@ -103,17 +104,31 @@ export default function AIChat() {
     <>
       {isOpen && (
         <div
-          className="fixed inset-2 z-[60] flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-zinc-50/95 shadow-2xl shadow-zinc-900/10 backdrop-blur-xl dark:border-zinc-700/80 dark:bg-zinc-950/95 dark:shadow-black/40 md:inset-auto md:bottom-24 md:right-6 md:h-[min(700px,80vh)] md:max-h-[min(700px,80vh)] md:w-[min(100vw-2rem,520px)]"
+          className="fixed inset-2 z-[60] flex h-[calc(100vh-1rem)] max-h-[calc(100vh-1rem)] flex-col rounded-2xl border border-zinc-200/80 bg-zinc-50/95 shadow-2xl shadow-zinc-900/10 backdrop-blur-xl dark:border-zinc-700/80 dark:bg-zinc-950/95 dark:shadow-black/40 md:inset-auto md:bottom-24 md:right-6 md:h-[min(700px,80vh)] md:max-h-[min(700px,80vh)] md:w-[min(100vw-2rem,520px)]"
           dir="rtl"
         >
-          {/* Header */}
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-zinc-200/80 bg-white/70 px-4 py-3 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/70">
-            <div className="flex min-w-0 items-center gap-3">
+          {/* Header: title + HelpTooltip stay outside the scrollable messages region (tooltip uses portal + z-index) */}
+          <div className="relative z-[100] flex flex-shrink-0 items-center justify-between rounded-t-2xl border-b border-zinc-200/80 bg-white/70 px-4 py-3 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/70">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/25">
                 <Bot className="h-5 w-5" aria-hidden />
               </div>
-              <div className="min-w-0">
-                <h3 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50">רואה חשבון דיגיטלי</h3>
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h3 className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                    רואה חשבון דיגיטלי
+                  </h3>
+                  <span className="shrink-0 [&_button]:h-4 [&_button]:w-4 [&_button]:border-zinc-300/90 [&_button]:bg-white/70 [&_button]:opacity-80 [&_button]:shadow-none hover:[&_button]:opacity-100 dark:[&_button]:border-zinc-600 dark:[&_button]:bg-zinc-800/80">
+                    <HelpTooltip
+                      wide
+                      usePortal
+                      portalZIndex={100}
+                      label="אודות הסוכן"
+                      text="הסוכן מכיר את חוקי המס של 2026 ואת ההוצאות שלך. שאל אותו על אחוזי הכרה במס, סיכומי הוצאות או ייעוץ 'תכלס'."
+                      triggerClassName="!h-4 !w-4 !shadow-none [&_svg]:!h-3 [&_svg]:!w-3"
+                    />
+                  </span>
+                </div>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">מענה מקצועי על מע״מ ומיסים</p>
               </div>
             </div>
@@ -127,8 +142,8 @@ export default function AIChat() {
             </button>
           </div>
 
-          {/* Messages */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          {/* Messages — scroll contained here; outer panel stays overflow-visible for portaled tooltip */}
+          <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-2">
             {messages.length === 0 && (
               <div className="mt-8 px-2 text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg">
@@ -150,7 +165,7 @@ export default function AIChat() {
                         key={q}
                         type="button"
                         onClick={() => handleExampleQuestion(q)}
-                        className="rounded-xl border border-zinc-200/90 bg-white px-3 py-2.5 text-right text-xs text-zinc-700 transition-colors hover:border-indigo-300 hover:bg-indigo-50/50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40"
+                        className="rounded-xl border border-zinc-200/90 bg-white px-3 py-2.5 text-right text-base text-zinc-700 transition-transform hover:border-indigo-300 hover:bg-indigo-50/50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-indigo-600 dark:hover:bg-indigo-950/40 md:text-sm"
                       >
                         {q}
                       </button>
@@ -249,7 +264,7 @@ export default function AIChat() {
                 }}
                 placeholder="הקלד שאלה…"
                 rows={1}
-                className="max-h-32 min-h-[44px] flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+                className="max-h-32 min-h-[44px] flex-1 resize-none rounded-xl border-0 bg-transparent px-3 py-2.5 text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-0 dark:text-zinc-100 dark:placeholder:text-zinc-500 md:text-sm"
                 dir="rtl"
                 disabled={isBusy}
               />
@@ -257,7 +272,7 @@ export default function AIChat() {
                 <button
                   type="button"
                   onClick={() => void stop()}
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 text-zinc-700 transition-transform hover:bg-zinc-100 active:scale-95 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
                   aria-label="עצור"
                 >
                   <Square className="h-4 w-4 fill-current" />
@@ -266,7 +281,7 @@ export default function AIChat() {
                 <button
                   type="submit"
                   disabled={!input.trim() || isBusy}
-                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md transition-all hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-md transition-transform hover:shadow-lg active:scale-95 disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100"
                   aria-label="שלח"
                 >
                   <ArrowLeft className="h-5 w-5" />
@@ -282,7 +297,7 @@ export default function AIChat() {
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-5 right-4 z-[60] flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-3.5 text-white shadow-2xl transition-all hover:scale-[1.02] hover:shadow-purple-500/30 md:bottom-6 md:right-6 md:px-6 md:py-4"
+        className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-[60] flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-3.5 text-white shadow-2xl transition-transform hover:scale-[1.02] hover:shadow-purple-500/30 active:scale-95 md:bottom-6 md:right-6 md:px-6 md:py-4"
         aria-label="פתח צ'אט עם רואה חשבון דיגיטלי"
       >
         <Sparkles className="h-6 w-6" />
